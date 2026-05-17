@@ -36,7 +36,9 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change this task — use your tools to set its status, log a work note, add an item to the buy list, log time spent, or record a tool the user just bought into their inventory. Take the action when the user asks ("mark this done", "add caulk to the list", "log 2 hours", "I bought a heat gun"). Don't just describe it — do it, then confirm in one short line what you changed. Only act on explicit intent; if unsure, ask first. Never fabricate that you did something the tool didn't confirm.
+- ACTIONS: you can actually change this task with your tools — and ONLY these: set status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
+- CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
+- Only act on explicit intent; if unsure, ask one question first. Never fabricate a change a tool didn't confirm.
 - Tailor every answer to THIS task's context provided below.`;
 
 export async function POST(req: Request) {
@@ -150,6 +152,93 @@ export async function POST(req: Request) {
             touch();
           },
           { status },
+        );
+      },
+    }),
+    updateTaskGuide: tool({
+      description:
+        "Rewrite this task's PLAN. Pass only the sections you are changing; each provided array fully REPLACES that section. Use when the user wants the steps/tools/materials/safety/tips corrected or rewritten.",
+      inputSchema: z.object({
+        steps: z.array(z.string()).optional(),
+        tools: z.array(z.string()).optional(),
+        materials: z.array(z.string()).optional(),
+        safety: z.array(z.string()).optional(),
+        tips: z.array(z.string()).optional(),
+      }),
+      execute: async (input) => {
+        if (!writable) return denied;
+        const set: Partial<{
+          steps: string[];
+          tools: string[];
+          materials: string[];
+          safety: string[];
+          tips: string[];
+        }> = {};
+        for (const k of [
+          "steps",
+          "tools",
+          "materials",
+          "safety",
+          "tips",
+        ] as const) {
+          if (input[k]) set[k] = input[k]!.map((s) => s.trim()).filter(Boolean);
+        }
+        const changed = Object.keys(set);
+        if (changed.length === 0)
+          return {
+            ok: false as const,
+            message: "No sections were provided to update.",
+          };
+        return commit(
+          "updateTaskGuide",
+          async () => {
+            await db
+              .insert(taskGuides)
+              .values({
+                taskId,
+                steps: set.steps ?? [],
+                tools: set.tools ?? [],
+                materials: set.materials ?? [],
+                safety: set.safety ?? [],
+                tips: set.tips ?? [],
+              })
+              .onConflictDoUpdate({ target: taskGuides.taskId, set });
+            await db
+              .update(tasks)
+              .set({ updatedAt: new Date() })
+              .where(eq(tasks.id, taskId));
+            touch();
+          },
+          { updated: changed },
+        );
+      },
+    }),
+    editTaskDetails: tool({
+      description:
+        "Rename this task or rewrite its one-line description. Use when the task's title/detail no longer matches the real job.",
+      inputSchema: z.object({
+        title: z.string().min(1).optional(),
+        detail: z.string().optional(),
+      }),
+      execute: async ({ title, detail }) => {
+        if (!writable) return denied;
+        const set: { title?: string; detail?: string; updatedAt: Date } = {
+          updatedAt: new Date(),
+        };
+        if (title) set.title = title.trim();
+        if (detail !== undefined) set.detail = detail.trim();
+        if (!("title" in set) && !("detail" in set))
+          return {
+            ok: false as const,
+            message: "Nothing to change.",
+          };
+        return commit(
+          "editTaskDetails",
+          async () => {
+            await db.update(tasks).set(set).where(eq(tasks.id, taskId));
+            touch();
+          },
+          { title: set.title, detail: set.detail },
         );
       },
     }),
