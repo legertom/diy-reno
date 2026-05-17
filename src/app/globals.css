@@ -243,7 +243,25 @@ textarea,
 button,
 select {
   font: inherit;
+}
+
+/* Force dark, readable text in every form field app-wide. They used to
+   inherit color, which on pages under the blueprint header resolved to
+   the header's pale text and made inputs unreadable. */
+input,
+textarea,
+select {
+  color: var(--color-ink);
+}
+
+button {
   color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-ink-faint);
+  opacity: 1;
 }
 
 ::selection {
