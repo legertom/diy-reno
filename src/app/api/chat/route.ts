@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db";
 import { chatMessages, tasks, taskGuides } from "@/db/schema";
-import { getAccess } from "@/lib/projects";
+import { getAccess, getUserTools } from "@/lib/projects";
 
 export const maxDuration = 60;
 
@@ -19,6 +19,7 @@ Rules:
 - When the user shares a photo, study it closely and describe what you actually see before advising.
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
+- TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
 - Tailor every answer to THIS task's context provided below.`;
 
 export async function POST(req: Request) {
@@ -46,11 +47,14 @@ export async function POST(req: Request) {
   if (!role) return new Response("Forbidden", { status: 403 });
 
   const db = getDb();
-  const [row] = await db
-    .select()
-    .from(tasks)
-    .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
-    .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)));
+  const [[row], ownedTools] = await Promise.all([
+    db
+      .select()
+      .from(tasks)
+      .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
+      .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId))),
+    getUserTools(session.user.id),
+  ]);
 
   if (!row) return new Response("Task not found", { status: 404 });
 
@@ -68,9 +72,14 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .join("\n");
 
+  const toolsList =
+    ownedTools.length > 0
+      ? ownedTools.map((t) => t.name).join("; ")
+      : "(none recorded — treat all needed tools as not owned)";
+
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
+    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
     messages: await convertToModelMessages(messages),
   });
 

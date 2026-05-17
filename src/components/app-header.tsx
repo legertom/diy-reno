@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wrench } from "lucide-react";
 import { signOut } from "@/auth";
 import { initials } from "@/lib/utils";
 
@@ -32,6 +33,13 @@ export function AppHeader({
           )}
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/profile"
+            aria-label="Your toolbox"
+            className="grid size-8 place-items-center rounded-lg border border-line-strong text-ink-soft transition-colors hover:border-brass hover:text-brass"
+          >
+            <Wrench className="size-4" />
+          </Link>
           <span
             className="grid size-8 place-items-center overflow-hidden rounded-full border border-line-strong bg-blueprint-tint text-[11px] font-semibold text-blueprint"
             title={user.name ?? user.email ?? ""}

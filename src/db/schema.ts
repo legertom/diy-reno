@@ -82,6 +82,23 @@ export const taskStatus = pgEnum("task_status", [
 ]);
 export const chatRole = pgEnum("chat_role", ["user", "assistant"]);
 
+/** A user's personal inventory of tools they already own. */
+export const userTools = pgTable(
+  "user_tool",
+  {
+    id: uuid().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: now(),
+  },
+  (t) => [
+    uniqueIndex("user_tool_unique").on(t.userId, t.name),
+    index("user_tool_user_idx").on(t.userId),
+  ],
+);
+
 export const projects = pgTable("project", {
   id: uuid().primaryKey(),
   ownerId: text("owner_id")
@@ -416,6 +433,7 @@ export const scheduleDayTasksRelations = relations(
 );
 
 export type User = typeof users.$inferSelect;
+export type UserTool = typeof userTools.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type Phase = typeof phases.$inferSelect;

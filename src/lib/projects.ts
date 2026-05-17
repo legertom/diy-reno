@@ -19,6 +19,7 @@ import {
   scheduleDays,
   scheduleDayTasks,
   chatMessages,
+  userTools,
   type Task,
 } from "@/db/schema";
 
@@ -352,6 +353,15 @@ export async function getTaskDetail(projectId: string, taskId: string) {
     photos: photoRows,
     totalSeconds,
   };
+}
+
+export async function getUserTools(userId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(userTools)
+    .where(eq(userTools.userId, userId))
+    .orderBy(asc(userTools.name));
 }
 
 export async function getMembers(projectId: string) {

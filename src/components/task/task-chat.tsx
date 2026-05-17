@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { ATTACH_EVENT } from "@/components/task/photo-uploader";
 
+export const ASK_EVENT = "reno:ask-foreman";
+
 type Attachment = { url: string; mediaType: string };
 
 function guessType(url: string): string {
@@ -59,6 +61,19 @@ export function TaskChat({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, busy]);
+
+  useEffect(() => {
+    function onAsk(e: Event) {
+      const { text } = (e as CustomEvent<{ text: string }>).detail;
+      if (!text) return;
+      sendMessage({ text });
+      document
+        .getElementById("foreman")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }
+    window.addEventListener(ASK_EVENT, onAsk);
+    return () => window.removeEventListener(ASK_EVENT, onAsk);
+  }, [sendMessage]);
 
   useEffect(() => {
     function onAttach(e: Event) {
@@ -119,7 +134,7 @@ export function TaskChat({
   }
 
   return (
-    <section>
+    <section id="foreman">
       <div className="flex items-center gap-2">
         <span className="grid size-7 place-items-center rounded-md bg-blueprint text-white">
           <Hammer className="size-3.5" />

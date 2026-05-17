@@ -13,6 +13,7 @@ import {
   shoppingItems,
   timeLogs,
   photos,
+  userTools,
 } from "@/db/schema";
 import { assertCanWrite, requireUser } from "@/lib/projects";
 
@@ -267,6 +268,31 @@ export async function deletePhoto(id: string) {
   await db.delete(photos).where(eq(photos.id, id));
   revalidateProject(photo.projectId);
   if (photo.taskId) revalidatePath(`/p/${photo.projectId}/t/${photo.taskId}`);
+}
+
+/* ------------------------------ owned tools ---------------------------- */
+
+export async function addUserTool(name: string) {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (!clean) return;
+  const user = await requireUser();
+  const db = getDb();
+  await db
+    .insert(userTools)
+    .values({ userId: user.id, name: clean })
+    .onConflictDoNothing({
+      target: [userTools.userId, userTools.name],
+    });
+  revalidatePath("/profile");
+}
+
+export async function removeUserTool(id: string) {
+  const user = await requireUser();
+  const db = getDb();
+  await db
+    .delete(userTools)
+    .where(and(eq(userTools.id, id), eq(userTools.userId, user.id)));
+  revalidatePath("/profile");
 }
 
 /* ------------------------------- collaborators ------------------------- */

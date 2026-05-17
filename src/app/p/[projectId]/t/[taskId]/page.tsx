@@ -4,6 +4,7 @@ import {
   getProjectOr404,
   getTaskDetail,
   getTaskChat,
+  getUserTools,
   canWrite as canWriteRole,
 } from "@/lib/projects";
 import { AppHeader } from "@/components/app-header";
@@ -15,6 +16,7 @@ import { ShoppingList } from "@/components/task/shopping-list";
 import { TimeTracker } from "@/components/task/time-tracker";
 import { PhotoUploader } from "@/components/task/photo-uploader";
 import { TaskChat } from "@/components/task/task-chat";
+import { TaskToolCheck } from "@/components/task/task-tool-check";
 
 function Section({
   label,
@@ -41,9 +43,10 @@ export default async function TaskPage({
   const { user, role, project } = await getProjectOr404(projectId);
   const writable = canWriteRole(role);
 
-  const [detail, chat] = await Promise.all([
+  const [detail, chat, ownedTools] = await Promise.all([
     getTaskDetail(projectId, taskId),
     getTaskChat(taskId),
+    getUserTools(user.id),
   ]);
   if (!detail) notFound();
 
@@ -111,6 +114,15 @@ export default async function TaskPage({
         {hasGuide && (
           <Section label="The plan">
             <GuideBlock guide={guideData!} />
+          </Section>
+        )}
+
+        {guideData && guideData.tools.length > 0 && (
+          <Section label="Tools for this step">
+            <TaskToolCheck
+              plannedTools={guideData.tools}
+              ownedTools={ownedTools.map((t) => t.name)}
+            />
           </Section>
         )}
 
