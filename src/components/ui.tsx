@@ -120,7 +120,7 @@ export function Button({
 }) {
   const variants = {
     primary:
-      "bg-brass text-white hover:bg-[#946f3c] border border-transparent shadow-[0_1px_2px_rgba(10,24,34,0.2)]",
+      "bg-brass text-white hover:bg-[#256a9c] border border-transparent shadow-[0_1px_2px_rgba(13,27,42,0.25)]",
     blueprint:
       "bg-blueprint text-white hover:bg-[#0c2f50] border border-transparent shadow-[0_1px_2px_rgba(10,24,34,0.2)]",
     secondary:

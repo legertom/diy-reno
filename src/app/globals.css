@@ -8,31 +8,35 @@
 */
 
 @theme {
-  --color-paper: #eceae3;
-  --color-paper-2: #e4e1d6;
+  /* Prussian Blueprint — cool drafting-table palette, no gold.
+     Token names are unchanged so every component re-skins at once;
+     the old "brass" family is repointed to the blueprint-cyan accent. */
+  --color-paper: #eef1f4;
+  --color-paper-2: #e2e8ef;
   --color-card: #ffffff;
 
-  --color-ink: #0a1822;
-  --color-ink-soft: #3c4c58;
-  --color-ink-faint: #76828d;
+  --color-ink: #0d1b2a;
+  --color-ink-soft: #41566b;
+  --color-ink-faint: #74879b;
 
-  --color-line: #e3e0d4;
-  --color-line-strong: #cfc9b8;
+  --color-line: #d4dde7;
+  --color-line-strong: #b6c6d6;
 
-  --color-blueprint: #0f3a63;
-  --color-blueprint-2: #2f6491;
-  --color-blueprint-deep: #082139;
-  --color-blueprint-tint: #e6edf4;
+  --color-blueprint: #1b3a5b;
+  --color-blueprint-2: #2f7fb8;
+  --color-blueprint-deep: #0d2438;
+  --color-blueprint-tint: #e1ebf4;
 
-  --color-brass: #a9824c;
-  --color-brass-2: #caa86a;
-  --color-brass-tint: #f3ecdc;
+  /* gold removed — repointed to the cyan accent */
+  --color-brass: #2f7fb8;
+  --color-brass-2: #5b9fcf;
+  --color-brass-tint: #e1ebf4;
 
-  --color-positive: #4a7350;
-  --color-positive-tint: #e7efe6;
-  --color-warn: #ac5f2c;
-  --color-warn-tint: #f6e7d8;
-  --color-danger: #9c3c2d;
+  --color-positive: #3f7a5e;
+  --color-positive-tint: #e2efe9;
+  --color-warn: #9c6233;
+  --color-warn-tint: #f0e6d8;
+  --color-danger: #a23b39;
 
   /* One architectural superfamily — Archivo — for display, body, and
      technical labels (no serif, no mono). */
@@ -65,8 +69,8 @@ body {
   text-rendering: optimizeLegibility;
   /* faint drafting grid on the paper */
   background-image:
-    linear-gradient(rgba(15, 58, 99, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 58, 99, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(27, 58, 91, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(27, 58, 91, 0.05) 1px, transparent 1px);
   background-size: 26px 26px;
   background-attachment: fixed;
 }
@@ -146,7 +150,7 @@ body {
   background-image:
     radial-gradient(
       120% 120% at 80% 0%,
-      rgba(47, 100, 145, 0.55) 0%,
+      rgba(47, 127, 184, 0.42) 0%,
       transparent 55%
     ),
     linear-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1px),
@@ -237,8 +241,8 @@ body {
 .hatch {
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(169, 130, 76, 0.16) 0,
-    rgba(169, 130, 76, 0.16) 1px,
+    rgba(47, 127, 184, 0.16) 0,
+    rgba(47, 127, 184, 0.16) 1px,
     transparent 1px,
     transparent 6px
   );
@@ -271,8 +275,8 @@ textarea::placeholder {
 }
 
 ::selection {
-  background: var(--color-brass-2);
-  color: #1a1205;
+  background: var(--color-blueprint-2);
+  color: #fff;
 }
 
 * {
