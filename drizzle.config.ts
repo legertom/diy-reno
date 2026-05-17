@@ -5,7 +5,9 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    // Neon's pooled (pgbouncer) endpoint breaks drizzle-kit DDL — prefer the
+    // unpooled URL the Vercel/Neon integration injects; fall back otherwise.
+    url: process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL!,
   },
   casing: "snake_case",
 });
