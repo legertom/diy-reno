@@ -17,6 +17,7 @@ import { TimeTracker } from "@/components/task/time-tracker";
 import { PhotoUploader } from "@/components/task/photo-uploader";
 import { TaskChat } from "@/components/task/task-chat";
 import { TaskToolCheck } from "@/components/task/task-tool-check";
+import { TaskEditor } from "@/components/task/task-editor";
 
 const SECTION_CODES: Record<string, string> = {
   "The plan": "PLN",
@@ -127,13 +128,21 @@ export default async function TaskPage({
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-card px-7 py-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line bg-card px-7 py-4">
             <span className="font-mono text-[10px] tracking-[0.18em] text-ink-faint uppercase">
               Status
             </span>
             <StatusControl
               taskId={task.id}
               status={task.status}
+              canWrite={writable}
+            />
+            {writable && <span className="ml-auto" />}
+            <TaskEditor
+              taskId={task.id}
+              title={task.title}
+              detail={task.detail}
+              guide={guideData}
               canWrite={writable}
             />
           </div>

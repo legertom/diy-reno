@@ -9,6 +9,7 @@ import {
   projects,
   projectMembers,
   tasks,
+  taskGuides,
   notes,
   shoppingItems,
   timeLogs,
@@ -67,6 +68,45 @@ export async function setTaskStatus(
     .where(eq(tasks.id, taskId));
   revalidateProject(projectId);
   revalidatePath(`/p/${projectId}/t/${taskId}`);
+}
+
+export async function updateTaskPlan(input: {
+  taskId: string;
+  title: string;
+  detail: string;
+  tools: string[];
+  materials: string[];
+  safety: string[];
+  steps: string[];
+  tips: string[];
+}) {
+  const title = input.title.trim();
+  if (!title) throw new Error("Title is required");
+  const projectId = await projectIdForTask(input.taskId);
+  await assertCanWrite(projectId);
+  const db = getDb();
+  const clean = (a: string[]) => a.map((s) => s.trim()).filter(Boolean);
+  const guide = {
+    tools: clean(input.tools),
+    materials: clean(input.materials),
+    safety: clean(input.safety),
+    steps: clean(input.steps),
+    tips: clean(input.tips),
+  };
+  await db
+    .update(tasks)
+    .set({
+      title,
+      detail: input.detail.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(tasks.id, input.taskId));
+  await db
+    .insert(taskGuides)
+    .values({ taskId: input.taskId, ...guide })
+    .onConflictDoUpdate({ target: taskGuides.taskId, set: guide });
+  revalidatePath(`/p/${projectId}/t/${input.taskId}`);
+  revalidateProject(projectId);
 }
 
 /* ----------------------------------- notes ----------------------------- */
