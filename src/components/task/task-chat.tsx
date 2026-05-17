@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import { useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
@@ -19,6 +20,7 @@ import {
   Square,
   Loader2,
   Hammer,
+  Check,
 } from "lucide-react";
 import { ATTACH_EVENT } from "@/components/task/photo-uploader";
 
@@ -34,6 +36,14 @@ function guessType(url: string): string {
   return "image/jpeg";
 }
 
+const TOOL_LABELS: Record<string, string> = {
+  "tool-setTaskStatus": "Updated status",
+  "tool-addNote": "Added a note",
+  "tool-addBuyItem": "Added to buy list",
+  "tool-logTime": "Logged time",
+  "tool-recordOwnedTool": "Saved to your toolbox",
+};
+
 export function TaskChat({
   projectId,
   taskId,
@@ -43,6 +53,7 @@ export function TaskChat({
   taskId: string;
   initialMessages: UIMessage[];
 }) {
+  const router = useRouter();
   const { messages, sendMessage, status, stop } = useChat({
     messages: initialMessages,
     transport: new DefaultChatTransport({
@@ -56,7 +67,19 @@ export function TaskChat({
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const wasBusy = useRef(false);
   const busy = status === "submitted" || status === "streaming";
+
+  // After the Foreman finishes, pull fresh server data so any task
+  // changes his tools made (status, notes, time, buy list) show up.
+  useEffect(() => {
+    if (busy) {
+      wasBusy.current = true;
+    } else if (wasBusy.current) {
+      wasBusy.current = false;
+      router.refresh();
+    }
+  }, [busy, router]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -201,6 +224,33 @@ export function TaskChat({
                       alt="attachment"
                       className="mt-2 max-h-56 rounded-lg border border-line"
                     />
+                  );
+                }
+                if (part.type.startsWith("tool-")) {
+                  const tp = part as {
+                    type: string;
+                    state?: string;
+                    output?: { ok?: boolean; message?: string };
+                  };
+                  if (tp.state !== "output-available") return null;
+                  const ok = tp.output?.ok !== false;
+                  const label = TOOL_LABELS[tp.type] ?? "Updated task";
+                  return (
+                    <div
+                      key={i}
+                      className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-wide uppercase ${
+                        ok
+                          ? "border-[#cfe0cb] bg-positive-tint text-positive"
+                          : "border-line-strong bg-paper text-ink-faint"
+                      }`}
+                    >
+                      {ok ? (
+                        <Check className="size-3" strokeWidth={3} />
+                      ) : (
+                        <X className="size-3" />
+                      )}
+                      {ok ? label : (tp.output?.message ?? "No change made")}
+                    </div>
                   );
                 }
                 return null;
