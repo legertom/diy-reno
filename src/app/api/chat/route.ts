@@ -106,6 +106,27 @@ export async function POST(req: Request) {
     revalidatePath(`/p/${projectId}`);
   }
 
+  // Run a write and only report success if it actually committed — so the
+  // Foreman can never claim a change that didn't land.
+  async function commit<T extends Record<string, unknown>>(
+    label: string,
+    op: () => Promise<void>,
+    ok: T,
+  ) {
+    try {
+      await op();
+      console.log(`[foreman] ${label} committed (task ${taskId})`);
+      return { ok: true as const, ...ok };
+    } catch (e) {
+      console.error(`[foreman] ${label} FAILED (task ${taskId}):`, e);
+      return {
+        ok: false as const,
+        message:
+          "I hit a database error and could not save that — tell the user it did NOT save and to try again.",
+      };
+    }
+  }
+
   const tools = {
     setTaskStatus: tool({
       description:
@@ -115,16 +136,21 @@ export async function POST(req: Request) {
       }),
       execute: async ({ status }) => {
         if (!writable) return denied;
-        await db
-          .update(tasks)
-          .set({
-            status,
-            completedAt: status === "done" ? new Date() : null,
-            updatedAt: new Date(),
-          })
-          .where(eq(tasks.id, taskId));
-        touch();
-        return { ok: true as const, status };
+        return commit(
+          "setTaskStatus",
+          async () => {
+            await db
+              .update(tasks)
+              .set({
+                status,
+                completedAt: status === "done" ? new Date() : null,
+                updatedAt: new Date(),
+              })
+              .where(eq(tasks.id, taskId));
+            touch();
+          },
+          { status },
+        );
       },
     }),
     addNote: tool({
@@ -133,11 +159,19 @@ export async function POST(req: Request) {
       inputSchema: z.object({ body: z.string().min(1) }),
       execute: async ({ body }) => {
         if (!writable) return denied;
-        await db
-          .insert(notes)
-          .values({ taskId, projectId, authorId: userId, body: body.trim() });
-        touch();
-        return { ok: true as const, body: body.trim() };
+        return commit(
+          "addNote",
+          async () => {
+            await db.insert(notes).values({
+              taskId,
+              projectId,
+              authorId: userId,
+              body: body.trim(),
+            });
+            touch();
+          },
+          { body: body.trim() },
+        );
       },
     }),
     addBuyItem: tool({
@@ -148,15 +182,20 @@ export async function POST(req: Request) {
       }),
       execute: async ({ label, quantity }) => {
         if (!writable) return denied;
-        await db.insert(shoppingItems).values({
-          projectId,
-          taskId,
-          label: label.trim(),
-          quantity: quantity?.trim() || null,
-          addedById: userId,
-        });
-        touch();
-        return { ok: true as const, label: label.trim(), quantity };
+        return commit(
+          "addBuyItem",
+          async () => {
+            await db.insert(shoppingItems).values({
+              projectId,
+              taskId,
+              label: label.trim(),
+              quantity: quantity?.trim() || null,
+              addedById: userId,
+            });
+            touch();
+          },
+          { label: label.trim() },
+        );
       },
     }),
     logTime: tool({
@@ -168,17 +207,22 @@ export async function POST(req: Request) {
       execute: async ({ minutes, note }) => {
         if (!writable) return denied;
         const seconds = Math.round(minutes * 60);
-        await db.insert(timeLogs).values({
-          taskId,
-          projectId,
-          userId,
-          startedAt: new Date(Date.now() - seconds * 1000),
-          endedAt: new Date(),
-          seconds,
-          note: note?.trim() || null,
-        });
-        touch();
-        return { ok: true as const, minutes };
+        return commit(
+          "logTime",
+          async () => {
+            await db.insert(timeLogs).values({
+              taskId,
+              projectId,
+              userId,
+              startedAt: new Date(Date.now() - seconds * 1000),
+              endedAt: new Date(),
+              seconds,
+              note: note?.trim() || null,
+            });
+            touch();
+          },
+          { minutes },
+        );
       },
     }),
     recordOwnedTool: tool({
@@ -187,15 +231,21 @@ export async function POST(req: Request) {
       inputSchema: z.object({ name: z.string().min(1) }),
       execute: async ({ name }) => {
         const clean = name.trim().replace(/\s+/g, " ");
-        if (!clean) return { ok: false as const };
-        await db
-          .insert(userTools)
-          .values({ userId, name: clean })
-          .onConflictDoNothing({
-            target: [userTools.userId, userTools.name],
-          });
-        revalidatePath("/profile");
-        return { ok: true as const, name: clean };
+        if (!clean)
+          return { ok: false as const, message: "Empty tool name." };
+        return commit(
+          "recordOwnedTool",
+          async () => {
+            await db
+              .insert(userTools)
+              .values({ userId, name: clean })
+              .onConflictDoNothing({
+                target: [userTools.userId, userTools.name],
+              });
+            revalidatePath("/profile");
+          },
+          { name: clean },
+        );
       },
     }),
   };

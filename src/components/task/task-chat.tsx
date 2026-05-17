@@ -60,6 +60,9 @@ export function TaskChat({
       api: "/api/chat",
       body: { projectId, taskId },
     }),
+    // When the Foreman finishes, re-pull server data so any task changes
+    // his tools made (status, notes, time, buy list) appear immediately.
+    onFinish: () => router.refresh(),
   });
 
   const [input, setInput] = useState("");
@@ -67,19 +70,7 @@ export function TaskChat({
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const wasBusy = useRef(false);
   const busy = status === "submitted" || status === "streaming";
-
-  // After the Foreman finishes, pull fresh server data so any task
-  // changes his tools made (status, notes, time, buy list) show up.
-  useEffect(() => {
-    if (busy) {
-      wasBusy.current = true;
-    } else if (wasBusy.current) {
-      wasBusy.current = false;
-      router.refresh();
-    }
-  }, [busy, router]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
