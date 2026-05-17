@@ -128,7 +128,7 @@ export default async function TaskPage({
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line bg-card px-7 py-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line bg-card px-7 py-4 text-ink">
             <span className="font-mono text-[10px] tracking-[0.18em] text-ink-faint uppercase">
               Status
             </span>
