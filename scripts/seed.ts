@@ -242,7 +242,9 @@ async function main() {
     console.log(`Created owner user ${SEED_OWNER_EMAIL}`);
   }
 
-  // Clean reseed: drop any existing "Kitchen Renovation" for this owner.
+  // Idempotent + non-destructive: if the plan already exists for this owner,
+  // leave it untouched. This runs on every deploy, so it must never wipe
+  // the user's live data. To force a clean reseed, set SEED_FORCE=1.
   const existing = await db
     .select()
     .from(schema.projects)
@@ -252,8 +254,17 @@ async function main() {
         eq(schema.projects.title, "Kitchen Renovation"),
       ),
     );
-  for (const p of existing) {
-    await db.delete(schema.projects).where(eq(schema.projects.id, p.id));
+  if (existing.length > 0) {
+    if (process.env.SEED_FORCE === "1") {
+      for (const p of existing) {
+        await db.delete(schema.projects).where(eq(schema.projects.id, p.id));
+      }
+    } else {
+      console.log(
+        `Kitchen Renovation already exists for ${SEED_OWNER_EMAIL} — skipping seed (set SEED_FORCE=1 to reseed).`,
+      );
+      return;
+    }
   }
 
   const [project] = await db
