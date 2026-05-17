@@ -34,9 +34,13 @@
   --color-warn-tint: #f6e7d8;
   --color-danger: #9c3c2d;
 
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  /* One architectural superfamily — Archivo — for display, body, and
+     technical labels (no serif, no mono). */
+  --font-archivo-stack: var(--font-archivo), "Helvetica Neue", Arial,
+    system-ui, sans-serif;
+  --font-display: var(--font-archivo-stack);
+  --font-sans: var(--font-archivo-stack);
+  --font-mono: var(--font-archivo-stack);
 
   --radius-card: 12px;
 
@@ -69,10 +73,12 @@ body {
 
 /* ---- Typographic primitives ---- */
 
+/* Architectural display — heavy Archivo, set tight (studio-signage) */
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.022em;
-  font-optical-sizing: auto;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
 }
 
 /* Architectural annotation label — uppercase, tracked, mono */
