@@ -1,0 +1,422 @@
+import "server-only";
+import { and, asc, desc, eq, isNull, or } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { cache } from "react";
+import { auth } from "@/auth";
+import { getDb } from "@/db";
+import {
+  users,
+  projects,
+  projectMembers,
+  phases,
+  tasks,
+  taskGuides,
+  notes,
+  shoppingItems,
+  timeLogs,
+  photos,
+  scheduleSections,
+  scheduleDays,
+  scheduleDayTasks,
+  chatMessages,
+  type Task,
+} from "@/db/schema";
+
+export type Role = "owner" | "editor" | "viewer";
+
+export const requireUser = cache(async () => {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/signin");
+  return session.user as { id: string; name?: string | null; email?: string | null; image?: string | null };
+});
+
+/** Idempotently attach pending email invites to this user. */
+async function reconcileInvites(userId: string, email?: string | null) {
+  if (!email) return;
+  const db = getDb();
+  await db
+    .update(projectMembers)
+    .set({ userId })
+    .where(
+      and(
+        eq(projectMembers.email, email.toLowerCase()),
+        isNull(projectMembers.userId),
+      ),
+    );
+}
+
+export async function listProjectsForUser(userId: string, email?: string | null) {
+  await reconcileInvites(userId, email);
+  const db = getDb();
+  const owned = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.ownerId, userId))
+    .orderBy(desc(projects.updatedAt));
+
+  const shared = await db
+    .select({ project: projects, role: projectMembers.role })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .where(
+      and(
+        eq(projectMembers.userId, userId),
+        // owner already covered above
+      ),
+    )
+    .orderBy(desc(projects.updatedAt));
+
+  return {
+    owned: owned.map((p) => ({ ...p, role: "owner" as Role })),
+    shared: shared
+      .filter((s) => s.project.ownerId !== userId)
+      .map((s) => ({ ...s.project, role: s.role as Role })),
+  };
+}
+
+/** Resolve the acting user's role on a project, or null if no access. */
+export async function getAccess(
+  projectId: string,
+  userId: string,
+  email?: string | null,
+): Promise<Role | null> {
+  await reconcileInvites(userId, email);
+  const db = getDb();
+  const [proj] = await db
+    .select({ ownerId: projects.ownerId })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!proj) return null;
+  if (proj.ownerId === userId) return "owner";
+
+  const [m] = await db
+    .select({ role: projectMembers.role })
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, projectId),
+        or(
+          eq(projectMembers.userId, userId),
+          email ? eq(projectMembers.email, email.toLowerCase()) : undefined,
+        ),
+      ),
+    );
+  return (m?.role as Role) ?? null;
+}
+
+export const canWrite = (role: Role | null) =>
+  role === "owner" || role === "editor";
+
+/** For server actions: throws unless the user can write to the project. */
+export async function assertCanWrite(projectId: string) {
+  const user = await requireUser();
+  const role = await getAccess(projectId, user.id, user.email);
+  if (!canWrite(role)) throw new Error("Not authorized to edit this project");
+  return { user, role: role as Role };
+}
+
+export async function getProjectOr404(projectId: string) {
+  const user = await requireUser();
+  const role = await getAccess(projectId, user.id, user.email);
+  if (!role) redirect("/");
+  const db = getDb();
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!project) redirect("/");
+  return { user, role, project };
+}
+
+export type TaskWithGuide = Task & {
+  guide: {
+    tools: string[];
+    materials: string[];
+    safety: string[];
+    steps: string[];
+    tips: string[];
+  } | null;
+  noteCount: number;
+  photoCount: number;
+  loggedSeconds: number;
+};
+
+async function loadTasksWithMeta(projectId: string): Promise<Map<string, TaskWithGuide>> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(tasks)
+    .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
+    .where(eq(tasks.projectId, projectId))
+    .orderBy(asc(tasks.position));
+
+  const [noteRows, photoRows, timeRows] = await Promise.all([
+    db
+      .select({ taskId: notes.taskId })
+      .from(notes)
+      .where(eq(notes.projectId, projectId)),
+    db
+      .select({ taskId: photos.taskId })
+      .from(photos)
+      .where(eq(photos.projectId, projectId)),
+    db
+      .select({ taskId: timeLogs.taskId, seconds: timeLogs.seconds })
+      .from(timeLogs)
+      .where(eq(timeLogs.projectId, projectId)),
+  ]);
+
+  const noteCount = new Map<string, number>();
+  for (const n of noteRows)
+    noteCount.set(n.taskId, (noteCount.get(n.taskId) ?? 0) + 1);
+  const photoCount = new Map<string, number>();
+  for (const p of photoRows)
+    if (p.taskId)
+      photoCount.set(p.taskId, (photoCount.get(p.taskId) ?? 0) + 1);
+  const logged = new Map<string, number>();
+  for (const t of timeRows)
+    logged.set(t.taskId, (logged.get(t.taskId) ?? 0) + (t.seconds ?? 0));
+
+  const map = new Map<string, TaskWithGuide>();
+  for (const r of rows) {
+    const t = r.task;
+    map.set(t.id, {
+      ...t,
+      guide: r.task_guide
+        ? {
+            tools: r.task_guide.tools,
+            materials: r.task_guide.materials,
+            safety: r.task_guide.safety,
+            steps: r.task_guide.steps,
+            tips: r.task_guide.tips,
+          }
+        : null,
+      noteCount: noteCount.get(t.id) ?? 0,
+      photoCount: photoCount.get(t.id) ?? 0,
+      loggedSeconds: logged.get(t.id) ?? 0,
+    });
+  }
+  return map;
+}
+
+export async function getBoard(projectId: string) {
+  const db = getDb();
+  const [phaseRows, taskMap] = await Promise.all([
+    db
+      .select()
+      .from(phases)
+      .where(eq(phases.projectId, projectId))
+      .orderBy(asc(phases.position)),
+    loadTasksWithMeta(projectId),
+  ]);
+
+  const tasksByPhase = new Map<string, TaskWithGuide[]>();
+  const orphans: TaskWithGuide[] = [];
+  for (const t of taskMap.values()) {
+    if (t.phaseId) {
+      const arr = tasksByPhase.get(t.phaseId) ?? [];
+      arr.push(t);
+      tasksByPhase.set(t.phaseId, arr);
+    } else orphans.push(t);
+  }
+
+  const all = [...taskMap.values()];
+  const done = all.filter((t) => t.status === "done").length;
+
+  return {
+    phases: phaseRows.map((p) => ({
+      ...p,
+      tasks: (tasksByPhase.get(p.id) ?? []).sort(
+        (a, b) => a.position - b.position,
+      ),
+    })),
+    orphans,
+    progress: { done, total: all.length },
+    allTasks: all,
+  };
+}
+
+export async function getSchedule(projectId: string) {
+  const db = getDb();
+  const [sections, days, entries, taskMap] = await Promise.all([
+    db
+      .select()
+      .from(scheduleSections)
+      .where(eq(scheduleSections.projectId, projectId))
+      .orderBy(asc(scheduleSections.position)),
+    db
+      .select()
+      .from(scheduleDays)
+      .where(eq(scheduleDays.projectId, projectId))
+      .orderBy(asc(scheduleDays.position)),
+    db
+      .select()
+      .from(scheduleDayTasks)
+      .innerJoin(scheduleDays, eq(scheduleDayTasks.dayId, scheduleDays.id))
+      .where(eq(scheduleDays.projectId, projectId))
+      .orderBy(asc(scheduleDayTasks.position)),
+    loadTasksWithMeta(projectId),
+  ]);
+
+  const entriesByDay = new Map<string, TaskWithGuide[]>();
+  for (const e of entries) {
+    const t = taskMap.get(e.schedule_day_task.taskId);
+    if (!t) continue;
+    const arr = entriesByDay.get(e.schedule_day_task.dayId) ?? [];
+    arr.push(t);
+    entriesByDay.set(e.schedule_day_task.dayId, arr);
+  }
+
+  const daysBySection = new Map<string | null, typeof days>();
+  for (const d of days) {
+    const key = d.sectionId ?? null;
+    const arr = daysBySection.get(key) ?? [];
+    arr.push(d);
+    daysBySection.set(key, arr);
+  }
+
+  return {
+    sections: sections.map((s) => ({
+      ...s,
+      days: (daysBySection.get(s.id) ?? []).map((d) => ({
+        ...d,
+        tasks: entriesByDay.get(d.id) ?? [],
+      })),
+    })),
+    looseDays: (daysBySection.get(null) ?? []).map((d) => ({
+      ...d,
+      tasks: entriesByDay.get(d.id) ?? [],
+    })),
+    taskMap,
+  };
+}
+
+export async function getTaskDetail(projectId: string, taskId: string) {
+  const db = getDb();
+  const [taskRow] = await db
+    .select()
+    .from(tasks)
+    .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
+    .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)));
+  if (!taskRow) return null;
+
+  const [noteRows, shoppingRows, timeRows, photoRows] = await Promise.all([
+    db
+      .select({
+        note: notes,
+        authorName: users.name,
+        authorEmail: users.email,
+      })
+      .from(notes)
+      .leftJoin(users, eq(notes.authorId, users.id))
+      .where(eq(notes.taskId, taskId))
+      .orderBy(desc(notes.createdAt)),
+    db
+      .select()
+      .from(shoppingItems)
+      .where(eq(shoppingItems.taskId, taskId))
+      .orderBy(asc(shoppingItems.createdAt)),
+    db
+      .select({
+        log: timeLogs,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(timeLogs)
+      .leftJoin(users, eq(timeLogs.userId, users.id))
+      .where(eq(timeLogs.taskId, taskId))
+      .orderBy(desc(timeLogs.startedAt)),
+    db
+      .select()
+      .from(photos)
+      .where(eq(photos.taskId, taskId))
+      .orderBy(desc(photos.createdAt)),
+  ]);
+
+  const totalSeconds = timeRows.reduce(
+    (s, t) => s + (t.log.seconds ?? 0),
+    0,
+  );
+
+  return {
+    task: taskRow.task,
+    guide: taskRow.task_guide,
+    notes: noteRows.map((n) => ({
+      ...n.note,
+      authorName: n.authorName ?? n.authorEmail ?? "Someone",
+    })),
+    shopping: shoppingRows,
+    timeLogs: timeRows.map((t) => ({
+      ...t.log,
+      userName: t.userName ?? t.userEmail ?? "Someone",
+    })),
+    photos: photoRows,
+    totalSeconds,
+  };
+}
+
+export async function getMembers(projectId: string) {
+  const db = getDb();
+  const [proj] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!proj) return null;
+  const [ownerUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, proj.ownerId));
+  const memberRows = await db
+    .select({
+      member: projectMembers,
+      name: users.name,
+      image: users.image,
+    })
+    .from(projectMembers)
+    .leftJoin(users, eq(projectMembers.userId, users.id))
+    .where(eq(projectMembers.projectId, projectId));
+  return {
+    owner: {
+      name: ownerUser?.name ?? null,
+      email: ownerUser?.email ?? null,
+      image: ownerUser?.image ?? null,
+    },
+    members: memberRows.map((m) => ({
+      id: m.member.id,
+      email: m.member.email,
+      role: m.member.role as Role,
+      name: m.name,
+      image: m.image,
+      active: !!m.member.userId,
+    })),
+  };
+}
+
+export async function getTaskChat(taskId: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(chatMessages)
+    .where(eq(chatMessages.taskId, taskId))
+    .orderBy(asc(chatMessages.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    role: r.role as "user" | "assistant",
+    parts: (r.parts as unknown[]) ?? [],
+  }));
+}
+
+/** First scheduled, not-done task — drives the "Next up" card. */
+export function computeNextUp(
+  schedule: Awaited<ReturnType<typeof getSchedule>>,
+): { task: TaskWithGuide; dayLabel: string } | null {
+  const ordered = [
+    ...schedule.sections.flatMap((s) => s.days),
+    ...schedule.looseDays,
+  ];
+  for (const d of ordered) {
+    for (const t of d.tasks) {
+      if (t.status !== "done") return { task: t, dayLabel: d.label };
+    }
+  }
+  return null;
+}

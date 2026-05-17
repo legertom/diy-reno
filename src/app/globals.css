@@ -1,26 +1,178 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+  DIY RENO — design language
+  "Architect's blueprint meets high-end real estate."
+  Warm drafting paper, ink navy, blueprint blue, brass accent.
+  Serif display (editorial), clean sans body, mono technical labels.
+*/
+
+@theme {
+  --color-paper: #f4f1ea;
+  --color-paper-2: #efeadf;
+  --color-card: #fffefb;
+  --color-ink: #0c1b2a;
+  --color-ink-soft: #3a4a5a;
+  --color-ink-faint: #6b7986;
+  --color-line: #e2ddcf;
+  --color-line-strong: #d2cbb8;
+
+  --color-blueprint: #14386b;
+  --color-blueprint-2: #2d5c8f;
+  --color-blueprint-tint: #e7edf4;
+
+  --color-brass: #a9824c;
+  --color-brass-2: #c79e63;
+  --color-brass-tint: #f3ebdc;
+
+  --color-positive: #4f7a4f;
+  --color-positive-tint: #e8efe6;
+  --color-warn: #b5632c;
+  --color-warn-tint: #f6e7da;
+  --color-danger: #a5402f;
+
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-card: 14px;
+
+  --shadow-card: 0 1px 2px rgba(12, 27, 42, 0.04), 0 8px 24px rgba(12, 27, 42, 0.06);
+  --shadow-lift: 0 8px 30px rgba(12, 27, 42, 0.14);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* faint blueprint grid on the paper */
+  background-image:
+    linear-gradient(rgba(20, 56, 107, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 56, 107, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-attachment: fixed;
+}
+
+/* ---- Typographic primitives ---- */
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Architectural annotation label — uppercase, tracked, mono */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-blueprint-2);
+}
+
+.eyebrow-brass {
+  color: var(--color-brass);
+}
+
+/* Hairline divider like a drafting rule */
+.rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-line-strong) 12%,
+    var(--color-line-strong) 88%,
+    transparent
+  );
+}
+
+/* Blueprint surface — for hero / headers */
+.blueprint-surface {
+  background-color: var(--color-blueprint);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  color: #eaf1f8;
+}
+
+/* Corner tick marks — architectural drawing detail */
+.ticked {
+  position: relative;
+}
+.ticked::before,
+.ticked::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-color: var(--color-brass);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0.55;
+}
+.ticked::before {
+  top: 8px;
+  left: 8px;
+  border-top-width: 1.5px;
+  border-left-width: 1.5px;
+}
+.ticked::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom-width: 1.5px;
+  border-right-width: 1.5px;
+}
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--color-brass-2);
+  color: #fff;
+}
+
+/* Subtle scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: rise 0.28s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
