@@ -286,6 +286,24 @@ export async function addUserTool(name: string) {
   revalidatePath("/profile");
 }
 
+export async function addUserTools(names: string[]) {
+  const cleaned = Array.from(
+    new Set(
+      names
+        .map((n) => n.trim().replace(/\s+/g, " "))
+        .filter((n) => n.length > 1 && n.length < 60),
+    ),
+  );
+  if (cleaned.length === 0) return;
+  const user = await requireUser();
+  const db = getDb();
+  await db
+    .insert(userTools)
+    .values(cleaned.map((name) => ({ userId: user.id, name })))
+    .onConflictDoNothing({ target: [userTools.userId, userTools.name] });
+  revalidatePath("/profile");
+}
+
 export async function removeUserTool(id: string) {
   const user = await requireUser();
   const db = getDb();
