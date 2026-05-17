@@ -100,16 +100,17 @@ export function TaskEditor({
 
   if (!open) {
     return (
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => {
           reset();
           setOpen(true);
         }}
-        className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] text-ink-faint uppercase transition-colors hover:text-brass"
       >
-        <Pencil className="size-3" /> Edit task &amp; plan
-      </button>
+        <Pencil className="size-4" /> Edit task &amp; plan
+      </Button>
     );
   }
 
