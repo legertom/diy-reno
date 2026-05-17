@@ -8,7 +8,7 @@ import {
   canWrite as canWriteRole,
 } from "@/lib/projects";
 import { AppHeader } from "@/components/app-header";
-import { Card, Eyebrow, Badge } from "@/components/ui";
+import { Card, Badge, SectionHeader } from "@/components/ui";
 import { GuideBlock } from "@/components/task-row";
 import { StatusControl } from "@/components/task/status-control";
 import { NotesPanel } from "@/components/task/notes-panel";
@@ -18,6 +18,16 @@ import { PhotoUploader } from "@/components/task/photo-uploader";
 import { TaskChat } from "@/components/task/task-chat";
 import { TaskToolCheck } from "@/components/task/task-tool-check";
 
+const SECTION_CODES: Record<string, string> = {
+  "The plan": "PLN",
+  "Tools for this step": "TLS",
+  "Ask the expert": "FRM",
+  Photos: "PIX",
+  Time: "HRS",
+  Notes: "NTS",
+  "Items to buy": "BUY",
+};
+
 function Section({
   label,
   children,
@@ -26,9 +36,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="mt-6">
-      <Eyebrow brass>{label}</Eyebrow>
-      <div className="rule mt-2 mb-3" />
+    <section className="mt-7">
+      <SectionHeader
+        label={label}
+        sheet={SECTION_CODES[label]}
+        className="mb-3"
+      />
       <Card className="p-4 sm:p-5">{children}</Card>
     </section>
   );
@@ -77,39 +90,54 @@ export default async function TaskPage({
       <AppHeader
         user={user}
         crumb={{ href: `/p/${projectId}`, label: project.title }}
+        sheet="A-3"
       />
       <main className="mx-auto max-w-3xl px-5 pt-6 pb-28">
-        <Card className="px-6 py-6">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-xs text-ink-faint">
-              #{task.num}
-            </span>
-            {task.status === "in_progress" && (
-              <Badge tone="warn">in progress</Badge>
+        <div className="blueprint-surface sheet-frame tick-corners overflow-hidden rounded-[var(--radius-card)] shadow-[var(--shadow-card)]">
+          <div className="px-7 py-7">
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[10px] tracking-[0.22em] text-[#7fa6cb] uppercase">
+                Task · #{task.num}
+              </span>
+              <span className="sheet-no text-[#7fa6cb]">
+                {project.title}
+              </span>
+            </div>
+            <h1 className="font-display mt-3 text-[1.7rem] leading-[1.1] text-white sm:text-[2.1rem]">
+              {task.title}
+            </h1>
+            {task.detail && (
+              <p className="mt-2 max-w-xl text-sm text-[#aec6de]">
+                {task.detail}
+              </p>
             )}
-            {task.status === "done" && <Badge tone="positive">done</Badge>}
-            {task.highlighted && <Badge tone="brass">new</Badge>}
-            {task.assigneeLabel && (
-              <Badge tone="blueprint">{task.assigneeLabel}</Badge>
-            )}
-            {task.hoursEstimate && task.hoursEstimate !== "—" && (
-              <Badge>{task.hoursEstimate}</Badge>
-            )}
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              {task.status === "in_progress" && (
+                <Badge tone="warn">in progress</Badge>
+              )}
+              {task.status === "done" && (
+                <Badge tone="positive">done</Badge>
+              )}
+              {task.highlighted && <Badge tone="brass">new</Badge>}
+              {task.assigneeLabel && (
+                <Badge tone="blueprint">{task.assigneeLabel}</Badge>
+              )}
+              {task.hoursEstimate && task.hoursEstimate !== "—" && (
+                <Badge tone="neutral">{task.hoursEstimate}</Badge>
+              )}
+            </div>
           </div>
-          <h1 className="font-display mt-2 text-2xl text-ink sm:text-3xl">
-            {task.title}
-          </h1>
-          {task.detail && (
-            <p className="mt-2 text-sm text-ink-soft">{task.detail}</p>
-          )}
-          <div className="mt-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-card px-7 py-4">
+            <span className="font-mono text-[10px] tracking-[0.18em] text-ink-faint uppercase">
+              Status
+            </span>
             <StatusControl
               taskId={task.id}
               status={task.status}
               canWrite={writable}
             />
           </div>
-        </Card>
+        </div>
 
         {hasGuide && (
           <Section label="The plan">

@@ -22,7 +22,7 @@ export function StatusControl({
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="inline-flex rounded-lg border border-line-strong bg-paper p-0.5">
+    <div className="inline-flex rounded-lg border border-line-strong bg-paper-2 p-1">
       {OPTIONS.map((o) => {
         const active = o.value === status;
         return (
@@ -34,12 +34,12 @@ export function StatusControl({
               startTransition(() => setTaskStatus(taskId, o.value))
             }
             className={cn(
-              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              "rounded-md px-3.5 py-1.5 text-[13px] tracking-wide transition-colors",
               active
                 ? o.value === "done"
-                  ? "bg-brass text-white"
-                  : "bg-blueprint text-white"
-                : "text-ink-faint hover:text-ink",
+                  ? "bg-brass font-semibold text-white shadow-[0_1px_3px_rgba(12,27,42,0.25)]"
+                  : "bg-blueprint font-semibold text-white shadow-[0_1px_3px_rgba(12,27,42,0.25)]"
+                : "font-medium text-ink-soft hover:text-ink",
               !canWrite && "cursor-not-allowed",
             )}
           >

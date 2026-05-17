@@ -2,43 +2,46 @@
 
 /*
   DIY RENO — design language
-  "Architect's blueprint meets high-end real estate."
-  Warm drafting paper, ink navy, blueprint blue, brass accent.
-  Serif display (editorial), clean sans body, mono technical labels.
+  "Architect's blueprint chrome over high-end drawing sheets."
+  Cyanotype-blue chrome (headers/hero/nav) framed like a title block;
+  crisp white content sheets with brass hairlines + registration marks.
 */
 
 @theme {
-  --color-paper: #f4f1ea;
-  --color-paper-2: #efeadf;
-  --color-card: #fffefb;
-  --color-ink: #0c1b2a;
-  --color-ink-soft: #3a4a5a;
-  --color-ink-faint: #6b7986;
-  --color-line: #e2ddcf;
-  --color-line-strong: #d2cbb8;
+  --color-paper: #eceae3;
+  --color-paper-2: #e4e1d6;
+  --color-card: #ffffff;
 
-  --color-blueprint: #14386b;
-  --color-blueprint-2: #2d5c8f;
-  --color-blueprint-tint: #e7edf4;
+  --color-ink: #0a1822;
+  --color-ink-soft: #3c4c58;
+  --color-ink-faint: #76828d;
+
+  --color-line: #e3e0d4;
+  --color-line-strong: #cfc9b8;
+
+  --color-blueprint: #0f3a63;
+  --color-blueprint-2: #2f6491;
+  --color-blueprint-deep: #082139;
+  --color-blueprint-tint: #e6edf4;
 
   --color-brass: #a9824c;
-  --color-brass-2: #c79e63;
-  --color-brass-tint: #f3ebdc;
+  --color-brass-2: #caa86a;
+  --color-brass-tint: #f3ecdc;
 
-  --color-positive: #4f7a4f;
-  --color-positive-tint: #e8efe6;
-  --color-warn: #b5632c;
-  --color-warn-tint: #f6e7da;
-  --color-danger: #a5402f;
+  --color-positive: #4a7350;
+  --color-positive-tint: #e7efe6;
+  --color-warn: #ac5f2c;
+  --color-warn-tint: #f6e7d8;
+  --color-danger: #9c3c2d;
 
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
   --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  --radius-card: 14px;
+  --radius-card: 12px;
 
-  --shadow-card: 0 1px 2px rgba(12, 27, 42, 0.04), 0 8px 24px rgba(12, 27, 42, 0.06);
-  --shadow-lift: 0 8px 30px rgba(12, 27, 42, 0.14);
+  --shadow-card: 0 1px 2px rgba(10, 24, 34, 0.05), 0 10px 30px rgba(10, 24, 34, 0.06);
+  --shadow-lift: 0 18px 50px rgba(8, 33, 57, 0.28);
 }
 
 * {
@@ -56,11 +59,11 @@ body {
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* faint blueprint grid on the paper */
+  /* faint drafting grid on the paper */
   background-image:
-    linear-gradient(rgba(20, 56, 107, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 56, 107, 0.035) 1px, transparent 1px);
-  background-size: 28px 28px;
+    linear-gradient(rgba(15, 58, 99, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 58, 99, 0.04) 1px, transparent 1px);
+  background-size: 26px 26px;
   background-attachment: fixed;
 }
 
@@ -68,15 +71,16 @@ body {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
+  font-optical-sizing: auto;
 }
 
 /* Architectural annotation label — uppercase, tracked, mono */
 .eyebrow {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--color-blueprint-2);
 }
@@ -85,29 +89,116 @@ body {
   color: var(--color-brass);
 }
 
-/* Hairline divider like a drafting rule */
+/* Drawing-sheet number / code, e.g. "A-1" */
+.sheet-no {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Brass hairline divider with end ticks — a dimension line */
+.dim-rule {
+  position: relative;
+  height: 1px;
+  background: var(--color-brass);
+  opacity: 0.55;
+}
+.dim-rule::before,
+.dim-rule::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 7px;
+  background: var(--color-brass);
+}
+.dim-rule::before {
+  left: 0;
+}
+.dim-rule::after {
+  right: 0;
+}
+
+/* legacy plain rule, kept for compatibility */
 .rule {
   height: 1px;
   background: linear-gradient(
     90deg,
     transparent,
-    var(--color-line-strong) 12%,
-    var(--color-line-strong) 88%,
+    var(--color-line-strong) 10%,
+    var(--color-line-strong) 90%,
     transparent
   );
 }
 
-/* Blueprint surface — for hero / headers */
+/* Blueprint chrome — headers / hero / nav */
 .blueprint-surface {
+  position: relative;
   background-color: var(--color-blueprint);
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
-  background-size: 22px 22px;
-  color: #eaf1f8;
+    radial-gradient(
+      120% 120% at 80% 0%,
+      rgba(47, 100, 145, 0.55) 0%,
+      transparent 55%
+    ),
+    linear-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.075) 1px, transparent 1px),
+    linear-gradient(160deg, var(--color-blueprint), var(--color-blueprint-deep));
+  background-size:
+    100% 100%,
+    22px 22px,
+    22px 22px,
+    100% 100%;
+  color: #dbe6f2;
+  overflow: hidden;
 }
 
-/* Corner tick marks — architectural drawing detail */
+/* Inset double-hairline frame, like a drawing sheet's border */
+.sheet-frame {
+  position: relative;
+}
+.sheet-frame::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border: 1px solid currentColor;
+  opacity: 0.16;
+  pointer-events: none;
+  border-radius: 3px;
+}
+
+/* Registration / corner tick marks */
+.tick-corners {
+  position: relative;
+}
+.tick-corners::before,
+.tick-corners::after {
+  content: "";
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-color: var(--color-brass-2);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.tick-corners::before {
+  top: 10px;
+  left: 10px;
+  border-top-width: 1.5px;
+  border-left-width: 1.5px;
+}
+.tick-corners::after {
+  bottom: 10px;
+  right: 10px;
+  border-bottom-width: 1.5px;
+  border-right-width: 1.5px;
+}
+
+/* keep old class name working — alias to the refined ticks */
 .ticked {
   position: relative;
 }
@@ -115,24 +206,36 @@ body {
 .ticked::after {
   content: "";
   position: absolute;
-  width: 9px;
-  height: 9px;
-  border-color: var(--color-brass);
+  width: 12px;
+  height: 12px;
+  border-color: var(--color-brass-2);
   border-style: solid;
   border-width: 0;
-  opacity: 0.55;
+  opacity: 0.65;
+  pointer-events: none;
 }
 .ticked::before {
-  top: 8px;
-  left: 8px;
+  top: 9px;
+  left: 9px;
   border-top-width: 1.5px;
   border-left-width: 1.5px;
 }
 .ticked::after {
-  bottom: 8px;
-  right: 8px;
+  bottom: 9px;
+  right: 9px;
   border-bottom-width: 1.5px;
   border-right-width: 1.5px;
+}
+
+/* 45° drafting hatch — sparing accent */
+.hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(169, 130, 76, 0.16) 0,
+    rgba(169, 130, 76, 0.16) 1px,
+    transparent 1px,
+    transparent 6px
+  );
 }
 
 input,
@@ -145,10 +248,9 @@ select {
 
 ::selection {
   background: var(--color-brass-2);
-  color: #fff;
+  color: #1a1205;
 }
 
-/* Subtle scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-line-strong) transparent;
@@ -157,7 +259,7 @@ select {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(7px);
   }
   to {
     opacity: 1;
@@ -165,7 +267,7 @@ select {
   }
 }
 .animate-rise {
-  animation: rise 0.28s ease both;
+  animation: rise 0.3s ease both;
 }
 
 @media (prefers-reduced-motion: reduce) {
