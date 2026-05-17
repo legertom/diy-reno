@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Check, Sparkles, Wrench } from "lucide-react";
 import { ASK_EVENT } from "@/components/task/task-chat";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui";
 
 const STOP = new Set([
   "the",
@@ -94,19 +94,12 @@ export function TaskToolCheck({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={ask}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors",
-            "bg-blueprint hover:bg-[#0f2c54]",
-          )}
-        >
+        <Button variant="blueprint" size="sm" onClick={ask}>
           <Sparkles className="size-3.5" />
           {need.length > 0
             ? `Ask the Foreman: buy or rent the ${need.length} I'm missing?`
             : "Ask the Foreman to double-check my kit"}
-        </button>
+        </Button>
         <span className="font-mono text-[10px] tracking-wide text-ink-faint uppercase">
           Heuristic match · the Foreman confirms
         </span>
