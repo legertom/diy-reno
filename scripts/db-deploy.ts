@@ -148,21 +148,29 @@ type Probe = {
 };
 
 async function probe(db: Db): Promise<Probe> {
+  // owner_id/title always exist; property_id only exists *after* the
+  // migration — so read it separately and treat "column absent" as null.
   const projects = (
-    await db.execute(
-      sql`select id, owner_id, title, property_id from "project"`,
-    )
-  ).rows as {
-    id: string;
-    owner_id: string;
-    title: string;
-    property_id: string | null;
-  }[];
-  let propertyCount = 0;
+    await db.execute(sql`select id, owner_id, title from "project"`)
+  ).rows as { id: string; owner_id: string; title: string }[];
+
+  const propertyId = new Map<string, string | null>();
+  try {
+    const rows = (
+      await db.execute(sql`select id, property_id from "project"`)
+    ).rows as { id: string; property_id: string | null }[];
+    for (const r of rows) propertyId.set(r.id, r.property_id);
+  } catch {
+    // pre-migration: project.property_id does not exist yet
+  }
+
+  let propertyCount = -1;
   try {
     propertyCount = Number(
-      (await db.execute(sql`select count(*)::int as n from "property"`))
-        .rows[0]!.n,
+      (
+        (await db.execute(sql`select count(*)::int as n from "property"`))
+          .rows as { n: number }[]
+      )[0]?.n ?? -1,
     );
   } catch {
     propertyCount = -1; // table does not exist yet (pre-migration)
@@ -173,7 +181,11 @@ async function probe(db: Db): Promise<Probe> {
     byId: new Map(
       projects.map((p) => [
         p.id,
-        { ownerId: p.owner_id, title: p.title, propertyId: p.property_id },
+        {
+          ownerId: p.owner_id,
+          title: p.title,
+          propertyId: propertyId.get(p.id) ?? null,
+        },
       ]),
     ),
   };
