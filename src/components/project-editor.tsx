@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, X } from "lucide-react";
+import { Pencil, X, Sparkles, Loader2 } from "lucide-react";
 import { updateProject } from "@/app/actions";
 import { Button } from "@/components/ui";
 
@@ -26,8 +26,33 @@ export function ProjectEditor({
   const [t, setT] = useState(title);
   const [s, setS] = useState(summary ?? "");
   const [b, setB] = useState(brief ?? "");
+  const [polishing, setPolishing] = useState(false);
 
   if (!canWrite) return null;
+
+  async function polish() {
+    if (polishing) return;
+    setError(null);
+    setPolishing(true);
+    try {
+      const res = await fetch("/api/polish-brief", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId, raw: b }),
+      });
+      const data = (await res.json()) as {
+        brief?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.brief)
+        throw new Error(data.error || "Couldn't polish that");
+      setB(data.brief);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPolishing(false);
+    }
+  }
 
   function reset() {
     setT(title);
@@ -120,10 +145,31 @@ export function ProjectEditor({
         id="pe-brief"
         value={b}
         onChange={(e) => setB(e.target.value)}
-        rows={7}
-        placeholder="Ground truth the Foreman should always know — e.g. walls are plaster not drywall; 1924 house (assume lead/asbestos until tested); galley kitchen 8x12; no garage, street parking only; tight budget; doing this solo on weekends."
+        rows={8}
+        placeholder="Just describe your situation in your own words — e.g. 'old house, walls are plaster, kitchen is small and galley shaped, doing it myself on weekends, not much money, no garage'. Then tap Clean up & summarize and the Foreman will structure it."
         className="mt-1.5 w-full resize-y rounded-lg border border-line-strong bg-paper px-3 py-2.5 text-sm leading-relaxed outline-none focus:border-brass"
       />
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={polish}
+          disabled={polishing || b.trim().length < 8}
+          className="inline-flex items-center gap-1.5 rounded-md border border-blueprint/40 bg-blueprint-tint px-2.5 py-1.5 text-xs font-medium text-blueprint transition-colors hover:border-blueprint disabled:opacity-50"
+        >
+          {polishing ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" /> Structuring…
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-3.5" /> Clean up &amp; summarize
+            </>
+          )}
+        </button>
+        <span className="text-[11px] text-ink-faint">
+          Rewrites the box above — review it, then Save.
+        </span>
+      </div>
 
       {error && <p className="mt-3 text-xs text-danger">{error}</p>}
 
