@@ -6,7 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { getDb } from "@/db";
@@ -36,7 +36,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change this task with your tools — and ONLY these: set status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
 - SAFETY ON REWRITE: never silently drop a hazard that still applies under the new method. Re-derive safety for the NEW method from scratch. Example: switching from heat-gun stripping to SANDING old paint does NOT remove lead risk — sanding pre-1978 paint creates lead dust and still requires a lead test, containment, HEPA, and a P100. Keep the lead/asbestos warnings that still apply; only remove ones genuinely irrelevant to the new method.
@@ -68,13 +68,24 @@ export async function POST(req: Request) {
   if (!role) return new Response("Forbidden", { status: 403 });
 
   const db = getDb();
-  const [[row], ownedTools] = await Promise.all([
+  const [[row], ownedTools, allTasks] = await Promise.all([
     db
       .select()
       .from(tasks)
       .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
       .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId))),
     getUserTools(session.user.id),
+    db
+      .select({
+        id: tasks.id,
+        num: tasks.num,
+        title: tasks.title,
+        status: tasks.status,
+        position: tasks.position,
+      })
+      .from(tasks)
+      .where(eq(tasks.projectId, projectId))
+      .orderBy(asc(tasks.position)),
   ]);
 
   if (!row) return new Response("Task not found", { status: 404 });
@@ -97,6 +108,10 @@ export async function POST(req: Request) {
     ownedTools.length > 0
       ? ownedTools.map((t) => t.name).join("; ")
       : "(none recorded — treat all needed tools as not owned)";
+
+  const taskList = allTasks
+    .map((x) => `#${x.num} [${x.status}] ${x.title}`)
+    .join("\n");
 
   const writable = canWrite(role);
   const userId = session.user.id;
@@ -154,6 +169,74 @@ export async function POST(req: Request) {
             touch();
           },
           { status },
+        );
+      },
+    }),
+    moveTask: tool({
+      description:
+        "Reorder the project task list: move a task to just before or just after another task. Identify tasks by their # number exactly as shown in 'ALL TASKS IN THIS PROJECT'. Provide exactly one of `before` or `after`.",
+      inputSchema: z.object({
+        task: z.string().describe("The task # to move, e.g. '16a'"),
+        before: z
+          .string()
+          .optional()
+          .describe("Move it to just before this task #"),
+        after: z
+          .string()
+          .optional()
+          .describe("Move it to just after this task #"),
+      }),
+      execute: async ({ task, before, after }) => {
+        if (!writable) return denied;
+        const norm = (s: string) => s.replace(/^#/, "").trim().toLowerCase();
+        const anchorNum = before ?? after;
+        if (!anchorNum || (before && after))
+          return {
+            ok: false as const,
+            message: "Provide exactly one of `before` or `after`.",
+          };
+        const moving = allTasks.find((x) => norm(x.num) === norm(task));
+        const anchor = allTasks.find((x) => norm(x.num) === norm(anchorNum));
+        if (!moving)
+          return { ok: false as const, message: `No task #${task}.` };
+        if (!anchor)
+          return {
+            ok: false as const,
+            message: `No task #${anchorNum} to anchor to.`,
+          };
+        if (moving.id === anchor.id)
+          return {
+            ok: false as const,
+            message: "A task can't be moved relative to itself.",
+          };
+        return commit(
+          "moveTask",
+          async () => {
+            const rest = allTasks.filter((x) => x.id !== moving.id);
+            const ai = rest.findIndex((x) => x.id === anchor.id);
+            const insertAt = before ? ai : ai + 1;
+            const ordered = [
+              ...rest.slice(0, insertAt),
+              moving,
+              ...rest.slice(insertAt),
+            ];
+            await Promise.all(
+              ordered.map((x, i) =>
+                x.position === i
+                  ? Promise.resolve()
+                  : db
+                      .update(tasks)
+                      .set({ position: i })
+                      .where(eq(tasks.id, x.id)),
+              ),
+            );
+            touch();
+          },
+          {
+            moved: `#${moving.num}`,
+            placement: before ? "before" : "after",
+            anchor: `#${anchor.num}`,
+          },
         );
       },
     }),
@@ -343,7 +426,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
+    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(5),

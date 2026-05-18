@@ -38,6 +38,7 @@ function guessType(url: string): string {
 
 const TOOL_LABELS: Record<string, string> = {
   "tool-setTaskStatus": "Updated status",
+  "tool-moveTask": "Reordered tasks",
   "tool-updateTaskGuide": "Rewrote the plan",
   "tool-editTaskDetails": "Edited task details",
   "tool-addNote": "Added a note",
