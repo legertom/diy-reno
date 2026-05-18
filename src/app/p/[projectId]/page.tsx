@@ -113,16 +113,19 @@ export default async function ProjectPage({
           </div>
         </div>
 
-        {/* Project brief / details editor */}
-        <div className="mt-4 flex justify-end">
-          <ProjectEditor
-            projectId={projectId}
-            title={project.title}
-            summary={project.summary}
-            brief={project.brief}
-            canWrite={writable}
-          />
-        </div>
+        {/* Project brief */}
+        <section className="mt-7">
+          <SectionHeader label="Project brief" sheet="BRIEF" />
+          <Card className="mt-3 p-5">
+            <ProjectEditor
+              projectId={projectId}
+              title={project.title}
+              summary={project.summary}
+              brief={project.brief}
+              canWrite={writable}
+            />
+          </Card>
+        </section>
 
         {/* Project Foreman entry */}
         <Link

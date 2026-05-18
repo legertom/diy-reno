@@ -28,8 +28,6 @@ export function ProjectEditor({
   const [b, setB] = useState(brief ?? "");
   const [polishing, setPolishing] = useState(false);
 
-  if (!canWrite) return null;
-
   async function polish() {
     if (polishing) return;
     setError(null);
@@ -85,17 +83,41 @@ export function ProjectEditor({
 
   if (!open) {
     return (
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => {
-          reset();
-          setOpen(true);
-        }}
-      >
-        <Pencil className="size-4" /> Edit project &amp; brief
-      </Button>
+      <div className="w-full">
+        <div className="flex items-start justify-between gap-4">
+          <span className="font-mono text-[10px] tracking-[0.18em] text-ink-faint uppercase">
+            The Foreman reads this on every task
+          </span>
+          {canWrite && (
+            <button
+              type="button"
+              onClick={() => {
+                reset();
+                setOpen(true);
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line-strong px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-brass hover:text-brass"
+            >
+              <Pencil className="size-3.5" /> Edit
+            </button>
+          )}
+        </div>
+        {brief && brief.trim() ? (
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-soft">
+            {brief}
+          </p>
+        ) : (
+          <p className="mt-3 text-sm text-ink-faint">
+            No brief yet. Add the ground truth about your home and job —
+            wall type, house age, dimensions, constraints — so the Foreman
+            stops guessing. Tap{" "}
+            <span className="font-medium text-ink">Edit</span>, then{" "}
+            <span className="font-medium text-ink">
+              Clean up &amp; summarize
+            </span>{" "}
+            to structure it.
+          </p>
+        )}
+      </div>
     );
   }
 
