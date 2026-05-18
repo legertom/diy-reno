@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Wrench } from "lucide-react";
 import { signOut } from "@/auth";
 import { initials } from "@/lib/utils";
+import { ForemanLauncher } from "@/components/foreman-launcher";
 
 export function AppHeader({
   user,
@@ -13,6 +14,7 @@ export function AppHeader({
   sheet?: string;
 }) {
   return (
+    <>
     <header className="blueprint-surface sticky top-0 z-30 border-b border-brass/40">
       <div className="mx-auto flex h-16 max-w-3xl items-stretch px-5">
         {/* Wordmark cell */}
@@ -94,5 +96,7 @@ export function AppHeader({
       </div>
       <div className="dim-rule mx-auto max-w-3xl" />
     </header>
+    <ForemanLauncher />
+    </>
   );
 }
