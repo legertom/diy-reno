@@ -14,6 +14,7 @@ import {
   chatMessages,
   tasks,
   taskGuides,
+  phases,
   notes,
   shoppingItems,
   timeLogs,
@@ -36,7 +37,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change things with your tools — and ONLY these: set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
 - SAFETY ON REWRITE: never silently drop a hazard that still applies under the new method. Re-derive safety for the NEW method from scratch. Example: switching from heat-gun stripping to SANDING old paint does NOT remove lead risk — sanding pre-1978 paint creates lead dust and still requires a lead test, containment, HEPA, and a P100. Keep the lead/asbestos warnings that still apply; only remove ones genuinely irrelevant to the new method.
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
   if (!role) return new Response("Forbidden", { status: 403 });
 
   const db = getDb();
-  const [[row], ownedTools, allTasks] = await Promise.all([
+  const [[row], ownedTools, allTasks, projectPhases] = await Promise.all([
     db
       .select()
       .from(tasks)
@@ -86,6 +87,15 @@ export async function POST(req: Request) {
       .from(tasks)
       .where(eq(tasks.projectId, projectId))
       .orderBy(asc(tasks.position)),
+    db
+      .select({
+        id: phases.id,
+        name: phases.name,
+        position: phases.position,
+      })
+      .from(phases)
+      .where(eq(phases.projectId, projectId))
+      .orderBy(asc(phases.position)),
   ]);
 
   if (!row) return new Response("Task not found", { status: 404 });
@@ -112,6 +122,10 @@ export async function POST(req: Request) {
   const taskList = allTasks
     .map((x) => `#${x.num} [${x.status}] ${x.title}`)
     .join("\n");
+
+  const phaseList = projectPhases.length
+    ? projectPhases.map((p) => p.name).join("\n")
+    : "(no phases yet)";
 
   const writable = canWrite(role);
   const userId = session.user.id;
@@ -146,7 +160,109 @@ export async function POST(req: Request) {
     }
   }
 
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/^\s*\d+(\.\d+)?\s*[—.)\-:]?\s*/, "")
+      .trim();
+
   const tools = {
+    addTask: tool({
+      description:
+        "Create a NEW task in this project. Optionally place it in a phase (use an exact name from PROJECT PHASES, or a new name to create that phase) and give it steps/tools/materials/safety/tips. It's added to the end of the list — use moveTask afterward if the user wants it in a specific spot.",
+      inputSchema: z.object({
+        title: z.string().min(2),
+        detail: z.string().optional(),
+        hoursEstimate: z
+          .string()
+          .optional()
+          .describe("e.g. '1–2h', '30m'"),
+        phase: z
+          .string()
+          .optional()
+          .describe("Phase name; omit to leave unphased"),
+        steps: z.array(z.string()).optional(),
+        tools: z.array(z.string()).optional(),
+        materials: z.array(z.string()).optional(),
+        safety: z.array(z.string()).optional(),
+        tips: z.array(z.string()).optional(),
+      }),
+      execute: async (input) => {
+        if (!writable) return denied;
+        const title = input.title.trim();
+        const maxNum = allTasks.reduce((m, x) => {
+          const n = parseInt(x.num, 10);
+          return Number.isFinite(n) && n > m ? n : m;
+        }, 0);
+        const num = String(maxNum + 1);
+        const position =
+          allTasks.reduce((m, x) => Math.max(m, x.position), -1) + 1;
+        const phaseName = input.phase?.trim();
+        const clean = (a?: string[]) =>
+          (a ?? []).map((s) => s.trim()).filter(Boolean);
+        const guide = {
+          tools: clean(input.tools),
+          materials: clean(input.materials),
+          safety: clean(input.safety),
+          steps: clean(input.steps),
+          tips: clean(input.tips),
+        };
+        const hasGuide = Object.values(guide).some((a) => a.length > 0);
+        let newTaskId = "";
+        let resolvedPhase = "Unphased";
+        const result = await commit(
+          "addTask",
+          async () => {
+            let phaseId: string | null = null;
+            if (phaseName) {
+              const existing = projectPhases.find(
+                (p) => norm(p.name) === norm(phaseName),
+              );
+              if (existing) {
+                phaseId = existing.id;
+                resolvedPhase = existing.name;
+              } else {
+                const pos =
+                  projectPhases.reduce(
+                    (m, p) => Math.max(m, p.position),
+                    -1,
+                  ) + 1;
+                const [ph] = await db
+                  .insert(phases)
+                  .values({ projectId, name: phaseName, position: pos })
+                  .returning({ id: phases.id, name: phases.name });
+                phaseId = ph.id;
+                resolvedPhase = ph.name;
+              }
+            }
+            const [created] = await db
+              .insert(tasks)
+              .values({
+                projectId,
+                phaseId,
+                num,
+                title,
+                detail: input.detail?.trim() || null,
+                hoursEstimate: input.hoursEstimate?.trim() || null,
+                position,
+              })
+              .returning({ id: tasks.id });
+            newTaskId = created.id;
+            if (hasGuide) {
+              await db
+                .insert(taskGuides)
+                .values({ taskId: created.id, ...guide });
+            }
+            touch();
+            revalidatePath(`/p/${projectId}/t/${created.id}`);
+          },
+          { added: `#${num} ${title}` },
+        );
+        if (result.ok)
+          return { ...result, num, phase: resolvedPhase, taskId: newTaskId };
+        return result;
+      },
+    }),
     setTaskStatus: tool({
       description:
         "Set this task's status. Use when the user says it's done, in progress, or not started.",
@@ -426,7 +542,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
+    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(5),
