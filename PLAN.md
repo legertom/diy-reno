@@ -1,13 +1,15 @@
 # DIY Reno — Implementation Plan
 
-> Status: **Phase 1 complete and verified in production (2026-05-18).** §5
-> signed off by the owner 2026-05-18 (as written). Deploy `1c18917` ran the
-> full §5 pipeline against prod: snapshot taken + recorded, idempotency gate
-> PASSED on a real Neon branch copy, reviewed migration applied, live
-> "Kitchen Renovation" intact/owned/nested under a Property, post-migration
-> verification passed, app live. All Phase 1 deliverables and the §5
-> checklist are verified from build logs (not from intent). **Next: Phase 2
-> (Foreman memory + compaction + reset).** Date: 2026-05-17. Branch:
+> Status: **Phases 1 & 2 shipped to production (2026-05-18).** §5 signed off
+> 2026-05-18 (as written). Phase 1 (deploy `1c18917`) and Phase 2 (deploy
+> `d20f76a`) both ran the full §5 pipeline against prod: snapshot taken +
+> recorded, idempotency gate PASSED on a real Neon branch copy, reviewed
+> migrations (`0001`+`0002`) applied, live "Kitchen Renovation"
+> intact/owned/nested, post-migration verification passed, app live —
+> verified from build logs, not intent. Phase 2 behavioral features
+> (memory recall, compaction, start-fresh) are deployed + type/build-clean
+> but not yet browser-tested in an authed session. **Next: Phase 3 (visual
+> language — "evolve the blueprint").** Date: 2026-05-17. Branch:
 > `claude/cool-morse-fc6a66`. Read `AGENTS.md` and `README.md` first; this
 > plan assumes both.
 
@@ -237,22 +239,34 @@ Risk: **high** (live data) — fully mitigated by §5.
 
 **Goal:** persistent character across a resettable, bounded conversation.
 
-Deliverables:
-- [ ] Memory store table(s), scoped user/property/project.
-- [ ] `remember` / `forget` Foreman tools, inside `commit()`; surfaced as
-      `TOOL_LABELS` chips.
-- [ ] System-prompt assembly injects scoped memory alongside project state.
-- [ ] Transcript **compaction**: threshold → summarize older turns into a
-      rolling summary stored with the thread; keep last N verbatim. Replaces
-      unbounded wipe/reinsert in the route's `onFinish`.
-- [ ] **"Start fresh"** reset (per scope, keyed like the existing
-      `taskId` / `taskId IS NULL` threads): clears transcript + summary,
-      preserves memory.
+Deliverables (code complete; `tsc`/`eslint`/`next build` green; migration
+0002 applied to prod via the §5 pipeline — see status below):
+- [x] Memory store table scoped user/property/project — `foreman_memory`
+      (`scope` + `scope_id`, per-user). Plus `chat_thread` for the rolling
+      summary. Migration `drizzle/0002_foreman_memory.sql` (additive, no
+      backfill, no DROP).
+- [x] `remember` / `forget` Foreman tools, inside `commit()`; surfaced as
+      `TOOL_LABELS` chips ("Saved to memory" / "Updated memory").
+- [x] System-prompt assembly injects scoped memory + the rolling summary
+      alongside project state.
+- [x] Transcript **compaction**: > `KEEP_LAST`(12)+`COMPACT_BATCH`(8) turns
+      → one cheap `generateText` folds the batch rolling out of the window
+      into `chat_thread.summary`; model sees only the last 12 + summary +
+      memory. Replaces the unbounded wipe/reinsert in `onFinish`.
+- [x] **"Start fresh"** reset (`resetForemanThread`, write-gated, keyed like
+      the existing `taskId` / `taskId IS NULL` threads): clears transcript +
+      summary, **preserves `foreman_memory`**. UI button in `task-chat.tsx`.
 
-Files/areas: `src/db/schema.ts`, `src/app/api/chat/route.ts`,
-`src/app/api/chat/history`, `src/components/task/task-chat.tsx`.
-Dependencies: Phase 1 (memory scoping needs Property/User). Exit: long threads
-stay bounded and cheaper; facts persist across resets; reset never wipes memory.
+Files/areas: `src/db/schema.ts`, `drizzle/0002*`, `scripts/db-deploy.ts`
+(pipeline generalized to apply all `000N>=1` migrations), `src/app/api/chat/
+route.ts`, `src/app/actions.ts`, `src/components/task/task-chat.tsx`.
+Dependencies: Phase 1 (met). Exit: long threads stay bounded and cheaper
+(model input capped at last 12 + summary); facts persist across resets;
+reset never wipes memory. **Migration verified in prod logs (deploy
+`d20f76a`): pipeline applied `0001`+`0002`, snapshot taken, gate PASSED,
+live data intact. Behavioral features (memory recall, compaction firing,
+start-fresh) are deployed and type/build-clean but not yet exercised in an
+authenticated browser session — interactive confirmation recommended.**
 
 ### Phase 3 — Visual language ("evolve the blueprint")
 

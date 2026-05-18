@@ -91,7 +91,9 @@ endpoint breaks drizzle-kit DDL).
   non-destructive migration. Tables: Auth.js
   (`user`,`account`,`session`,`verificationToken`), `property`, `project`,
   `project_member`, `phase`, `task`, `task_guide`, `note`, `shopping_item`,
-  `time_log`, `photo`, `chat_message`, `user_tool`. Enums: `member_role`,
+  `time_log`, `photo`, `chat_message`, `chat_thread` (per-thread rolling
+  summary for compaction), `foreman_memory` (durable Foreman memory, scoped
+  user/property/project), `user_tool`. Enums: `member_role`,
   `task_status` (todo|in_progress|done), `chat_role`.
   **There is no schedule/date model** (removed by design).
   **Sharing/authz stay at the project level** — Property is purely the
@@ -131,21 +133,34 @@ everywhere; `taskId` may be `null`).
   tools). `taskId` null → project Foreman (planning; task-scoped tools
   politely defer).
 - **System prompt** is assembled per request: persona + `ABOUT THIS
-  PROJECT` (title/summary/**brief**) + owned tools + phases + full task
-  list (current order) + current task context *or* project-mode note.
+  PROJECT` (title/summary/**brief**) + **WHAT YOU REMEMBER** (durable
+  `foreman_memory` in scope) + **EARLIER IN THIS CONVERSATION** (the
+  thread's rolling summary) + owned tools + phases + full task list
+  (current order) + current task context *or* project-mode note.
 - **Tools** (all writes wrapped in `commit()` which only reports `ok:true`
   if the DB write actually succeeded — prevents the model claiming
   unfulfilled changes). `denied` if not writable; `noTask` if a
   task-scoped tool is used with no task:
   - Project-wide: `setProjectBrief`, `updateProjectDetails`, `addTask`,
     `moveTask`, `deleteTask`, `moveTaskToPhase`, `movePhase`,
-    `renamePhase`, `mergePhases`, `deletePhase`, `recordOwnedTool`.
+    `renamePhase`, `mergePhases`, `deletePhase`, `recordOwnedTool`,
+    `remember` / `forget` (durable memory, scoped user/property/project;
+    project/property scope is write-gated, user scope is the caller's own).
   - Task-scoped: `setTaskStatus`, `updateTaskGuide`, `editTaskDetails`,
     `addNote`, `addBuyItem`, `logTime`.
-- **Persistence:** `onFinish` wipes + reinserts the thread into
-  `chat_message` — keyed by `taskId`, or `taskId IS NULL` for the project
-  thread. Client refreshes server data via `useChat({ onFinish: () =>
-  router.refresh() })`.
+- **Memory vs. transcript:** `foreman_memory` is durable and survives
+  resets; the transcript is disposable. **"Start fresh"**
+  (`resetForemanThread`, write-gated, button in `task-chat.tsx`) clears
+  `chat_message` + `chat_thread.summary` for the thread but never
+  `foreman_memory` — the character is not amnesiac after a reset.
+- **Persistence + compaction:** `onFinish` keeps the last `KEEP_LAST`(12)
+  turns verbatim in `chat_message`; once a thread exceeds 12+`COMPACT_BATCH`
+  (8), one cheap `generateText` folds the batch rolling out of the window
+  into `chat_thread.summary` (merge, no duplicate/loss). The model only
+  ever sees the last 12 turns + summary + memory, so per-turn cost is
+  bounded (no more replaying the whole transcript). Keyed by `taskId`, or
+  `taskId IS NULL` for the project thread. Client refreshes via
+  `useChat({ onFinish: () => router.refresh() })`.
 - **UI feedback:** tool result parts render as chips via `TOOL_LABELS`
   in `task-chat.tsx` — add an entry when you add a tool.
 - **Adding a tool:** add `tool({...})` in the route (mind project vs
