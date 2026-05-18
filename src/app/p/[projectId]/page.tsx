@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, Compass } from "lucide-react";
+import { Users, Compass, Hammer } from "lucide-react";
 import {
   getProjectOr404,
   getBoard,
@@ -76,13 +76,22 @@ export default async function ProjectPage({
                 </p>
               )}
             </div>
-            <Link
-              href={`/p/${projectId}/settings`}
-              className="grid size-9 shrink-0 place-items-center border border-white/25 text-[#cfe0f2] transition-colors hover:border-brass-2 hover:text-white"
-              aria-label="Collaborators"
-            >
-              <Users className="size-4" />
-            </Link>
+            <div className="flex shrink-0 gap-2">
+              <Link
+                href={`/p/${projectId}/foreman`}
+                className="grid size-9 place-items-center border border-white/25 text-[#cfe0f2] transition-colors hover:border-brass-2 hover:text-white"
+                aria-label="Ask the project Foreman"
+              >
+                <Hammer className="size-4" />
+              </Link>
+              <Link
+                href={`/p/${projectId}/settings`}
+                className="grid size-9 place-items-center border border-white/25 text-[#cfe0f2] transition-colors hover:border-brass-2 hover:text-white"
+                aria-label="Collaborators"
+              >
+                <Users className="size-4" />
+              </Link>
+            </div>
           </div>
 
           <div className="mt-7">
@@ -102,6 +111,27 @@ export default async function ProjectPage({
             />
           </div>
         </div>
+
+        {/* Project Foreman entry */}
+        <Link
+          href={`/p/${projectId}/foreman`}
+          className="group mt-4 flex items-center gap-3 rounded-[var(--radius-card)] border border-blueprint/25 bg-blueprint-tint px-5 py-3.5 transition-colors hover:border-blueprint"
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-md bg-blueprint text-white">
+            <Hammer className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink">
+              Ask the project Foreman
+            </span>
+            <span className="block text-xs text-ink-soft">
+              Plan the job, or have it add &amp; reorder tasks
+            </span>
+          </span>
+          <span className="font-mono text-[10px] tracking-[0.16em] text-blueprint uppercase">
+            Open →
+          </span>
+        </Link>
 
         {/* Next up — first unfinished task in order */}
         {nextUp && (

@@ -6,7 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { getDb } from "@/db";
@@ -53,12 +53,17 @@ export async function POST(req: Request) {
   const {
     messages,
     projectId,
-    taskId,
-  }: { messages: UIMessage[]; projectId: string; taskId: string } =
-    await req.json();
+    taskId: rawTaskId,
+  }: {
+    messages: UIMessage[];
+    projectId: string;
+    taskId?: string | null;
+  } = await req.json();
+  // Project-level Foreman = no specific task.
+  const taskId = rawTaskId || null;
 
-  if (!projectId || !taskId) {
-    return new Response("Missing project or task", { status: 400 });
+  if (!projectId) {
+    return new Response("Missing project", { status: 400 });
   }
 
   const role = await getAccess(
@@ -69,12 +74,16 @@ export async function POST(req: Request) {
   if (!role) return new Response("Forbidden", { status: 403 });
 
   const db = getDb();
-  const [[row], ownedTools, allTasks, projectPhases] = await Promise.all([
-    db
-      .select()
-      .from(tasks)
-      .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
-      .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId))),
+  const [taskRows, ownedTools, allTasks, projectPhases] = await Promise.all([
+    taskId
+      ? db
+          .select()
+          .from(tasks)
+          .leftJoin(taskGuides, eq(tasks.id, taskGuides.taskId))
+          .where(
+            and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)),
+          )
+      : Promise.resolve([]),
     getUserTools(session.user.id),
     db
       .select({
@@ -98,21 +107,31 @@ export async function POST(req: Request) {
       .orderBy(asc(phases.position)),
   ]);
 
-  if (!row) return new Response("Task not found", { status: 404 });
+  const row = taskRows[0];
+  if (taskId && !row)
+    return new Response("Task not found", { status: 404 });
 
-  const t = row.task;
-  const g = row.task_guide;
-  const context = [
-    `TASK #${t.num}: ${t.title}`,
-    t.detail ? `Detail: ${t.detail}` : "",
-    t.hoursEstimate ? `Estimated effort: ${t.hoursEstimate}` : "",
-    g?.tools?.length ? `Planned tools: ${g.tools.join("; ")}` : "",
-    g?.materials?.length ? `Planned materials: ${g.materials.join("; ")}` : "",
-    g?.safety?.length ? `Known safety notes: ${g.safety.join("; ")}` : "",
-    g?.steps?.length ? `Planned steps: ${g.steps.join(" -> ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const t = row?.task;
+  const g = row?.task_guide;
+  const context = t
+    ? [
+        `TASK #${t.num}: ${t.title}`,
+        t.detail ? `Detail: ${t.detail}` : "",
+        t.hoursEstimate ? `Estimated effort: ${t.hoursEstimate}` : "",
+        g?.tools?.length ? `Planned tools: ${g.tools.join("; ")}` : "",
+        g?.materials?.length
+          ? `Planned materials: ${g.materials.join("; ")}`
+          : "",
+        g?.safety?.length
+          ? `Known safety notes: ${g.safety.join("; ")}`
+          : "",
+        g?.steps?.length
+          ? `Planned steps: ${g.steps.join(" -> ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
 
   const toolsList =
     ownedTools.length > 0
@@ -134,9 +153,15 @@ export async function POST(req: Request) {
     message:
       "You only have view access to this project, so I couldn't make that change.",
   };
+  const noTask = {
+    ok: false as const,
+    message:
+      "No task is open — you're the project Foreman here. Tell the user to open that specific task to do this, or use addTask / moveTask which work project-wide.",
+  };
   function touch() {
-    revalidatePath(`/p/${projectId}/t/${taskId}`);
+    if (taskId) revalidatePath(`/p/${projectId}/t/${taskId}`);
     revalidatePath(`/p/${projectId}`);
+    revalidatePath(`/p/${projectId}/foreman`);
   }
 
   // Run a write and only report success if it actually committed — so the
@@ -271,6 +296,7 @@ export async function POST(req: Request) {
       }),
       execute: async ({ status }) => {
         if (!writable) return denied;
+        if (!taskId) return noTask;
         return commit(
           "setTaskStatus",
           async () => {
@@ -368,6 +394,7 @@ export async function POST(req: Request) {
       }),
       execute: async (input) => {
         if (!writable) return denied;
+        if (!taskId) return noTask;
         const set: Partial<{
           steps: string[];
           tools: string[];
@@ -423,6 +450,7 @@ export async function POST(req: Request) {
       }),
       execute: async ({ title, detail }) => {
         if (!writable) return denied;
+        if (!taskId) return noTask;
         const set: { title?: string; detail?: string; updatedAt: Date } = {
           updatedAt: new Date(),
         };
@@ -449,6 +477,7 @@ export async function POST(req: Request) {
       inputSchema: z.object({ body: z.string().min(1) }),
       execute: async ({ body }) => {
         if (!writable) return denied;
+        if (!taskId) return noTask;
         return commit(
           "addNote",
           async () => {
@@ -472,6 +501,7 @@ export async function POST(req: Request) {
       }),
       execute: async ({ label, quantity }) => {
         if (!writable) return denied;
+        if (!taskId) return noTask;
         return commit(
           "addBuyItem",
           async () => {
@@ -496,6 +526,7 @@ export async function POST(req: Request) {
       }),
       execute: async ({ minutes, note }) => {
         if (!writable) return denied;
+        if (!taskId) return noTask;
         const seconds = Math.round(minutes * 60);
         return commit(
           "logTime",
@@ -542,7 +573,11 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n--- CURRENT TASK CONTEXT ---\n${context}`,
+    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
+      taskId
+        ? `--- CURRENT TASK CONTEXT ---\n${context}`
+        : `--- MODE: PROJECT FOREMAN ---\nNo specific task is open. You're helping plan the whole project: answer questions, advise sequencing, and CREATE or REORDER tasks (addTask / moveTask) when asked. For status changes, notes, time logs, or rewriting one task's plan, tell the user to open that specific task — those tools need a task open.`
+    }`,
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(5),
@@ -554,7 +589,14 @@ export async function POST(req: Request) {
       try {
         await db
           .delete(chatMessages)
-          .where(eq(chatMessages.taskId, taskId));
+          .where(
+            and(
+              eq(chatMessages.projectId, projectId),
+              taskId
+                ? eq(chatMessages.taskId, taskId)
+                : isNull(chatMessages.taskId),
+            ),
+          );
         if (finalMessages.length) {
           await db.insert(chatMessages).values(
             finalMessages.map((m) => ({

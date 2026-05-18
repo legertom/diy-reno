@@ -357,6 +357,26 @@ export async function getTaskChat(taskId: string) {
   }));
 }
 
+/** Project-level Foreman thread (messages with no task). */
+export async function getProjectChat(projectId: string) {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.projectId, projectId),
+        isNull(chatMessages.taskId),
+      ),
+    )
+    .orderBy(asc(chatMessages.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    role: r.role as "user" | "assistant",
+    parts: (r.parts as unknown[]) ?? [],
+  }));
+}
+
 /** First not-done task in phase + position order — drives "Next up". */
 export function computeNextUp(
   board: Awaited<ReturnType<typeof getBoard>>,

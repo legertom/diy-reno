@@ -50,11 +50,11 @@ const TOOL_LABELS: Record<string, string> = {
 
 export function TaskChat({
   projectId,
-  taskId,
+  taskId = null,
   initialMessages,
 }: {
   projectId: string;
-  taskId: string;
+  taskId?: string | null;
   initialMessages: UIMessage[];
 }) {
   const router = useRouter();
@@ -62,7 +62,7 @@ export function TaskChat({
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: { projectId, taskId },
+      body: { projectId, taskId: taskId ?? null },
     }),
     // When the Foreman finishes, re-pull server data so any task changes
     // his tools made (status, notes, time, buy list) appear immediately.
