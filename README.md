@@ -1,79 +1,217 @@
 # DIY Reno
 
-A renovation planner and on-site foreman. Plan a job in phases, work a
-day-by-day schedule, check tasks off, log hours, snap photos, keep a buy
-list, and ask a multimodal AI renovation expert ("The Foreman") for help on
-any step. Share a project with a partner, friend, helper, or contractor.
+A renovation planner with an agentic AI "Foreman." Plan a job as **phases →
+ordered tasks** (no dates), check tasks off, log hours, keep a buy list, snap
+photos, and run the *entire* project by chatting with a renovation-expert AI
+that can actually mutate your data. Share a project with collaborators.
 
-Designed mobile-first — built for a phone on a dusty job site — with an
-architect's-blueprint / high-end-real-estate aesthetic.
+Mobile-first. Visual language: architect's-blueprint chrome over light
+"drawing-sheet" content. Live at `https://diy-reno.vercel.app`.
 
-## Stack
+> This README is written so another engineer or AI agent can work on the app
+> without re-discovering the hard-won decisions. Read **§7 Gotchas** before
+> changing data access, styling, deploy, or the Foreman.
+
+---
+
+## 1. Stack
 
 | Concern | Choice |
 |---|---|
-| Framework | Next.js 16 (App Router) · React 19 · Tailwind v4 |
-| Auth | Auth.js v5 — Google sign-in |
-| Database | Neon Postgres (Vercel Marketplace) · Drizzle ORM |
-| Photos | Vercel Blob |
-| AI | Vercel AI SDK v6 · Vercel AI Gateway (`anthropic/claude-sonnet-4.6`) |
+| Framework | Next.js 16 (App Router, RSC) · React 19 · TypeScript |
+| Styling | Tailwind v4 (CSS-first `@theme` in `globals.css`) |
+| Type | **Archivo** only (one superfamily; no serif/mono) via `next/font` |
+| Auth | Auth.js v5 (`next-auth@beta`) — Google only, DB sessions, `@auth/drizzle-adapter` |
+| DB | Neon Postgres (Vercel Marketplace) + Drizzle ORM (`drizzle-orm/neon-http`) |
+| Files | Vercel Blob (client uploads) |
+| AI | Vercel AI SDK v6 (`ai`, `@ai-sdk/react`) via **Vercel AI Gateway** |
+| Deploy | Vercel, Git integration (push `main` → prod) |
 
-## Local setup
+Model: string `anthropic/claude-sonnet-4.6` (override with `AI_MODEL`). On
+Vercel the Gateway authenticates via the project's OIDC token — no
+`AI_GATEWAY_API_KEY` needed in prod; set it only for local dev.
+
+## 2. Run locally
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill it in (see below)
-npm run db:push              # create tables in Neon
-npm run db:seed              # seed the Kitchen Renovation plan
+cp .env.example .env.local            # fill in (see below)
+npm run db:push                       # create tables (uses unpooled URL)
+npm run db:seed                       # seed Kitchen Renovation (idempotent)
 npm run dev
 ```
 
-### Environment variables (`.env.local`)
+`db:push`/`db:seed`/`db:studio`/`db:generate` use `dotenv-cli` to load
+`.env.local` (drizzle-kit/tsx don't read it automatically). They prefer
+`DATABASE_URL_UNPOOLED` over `DATABASE_URL` (Neon's pooled pgbouncer
+endpoint breaks drizzle-kit DDL).
 
-- `DATABASE_URL` — Neon Postgres connection string.
+### Env vars (`.env.example`)
+
+- `DATABASE_URL` / `DATABASE_URL_UNPOOLED` — Neon. Provisioned by the Vercel
+  Neon integration; **marked Sensitive in Vercel, so `vercel env pull` returns
+  them blank.** That's why migrations/seed run in the Vercel build (see §6).
 - `AUTH_SECRET` — `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
-- `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` — Google Cloud → APIs & Services →
-  Credentials → **OAuth client ID** → *Web application*. Authorized redirect
-  URIs: `http://localhost:3000/api/auth/callback/google` and
-  `https://YOUR-DOMAIN/api/auth/callback/google`.
-- `AI_GATEWAY_API_KEY` — Vercel dashboard → AI Gateway → API key. Injected
-  automatically on Vercel deployments; only needed for local dev.
-- `BLOB_READ_WRITE_TOKEN` — Vercel Blob store token. Injected automatically
-  on Vercel; only needed for local dev.
-- `AI_MODEL` *(optional)* — defaults to `anthropic/claude-sonnet-4.6`.
+- `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` — Google OAuth web client.
+  Redirect URI: `https://<domain>/api/auth/callback/google` (+ localhost).
+- `AI_GATEWAY_API_KEY` — local dev only (prod uses OIDC).
+- `AI_MODEL` — optional model override.
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob; auto on Vercel, needed locally.
 
-### The seeded Kitchen plan
+## 3. Architecture
 
-`npm run db:seed` creates a user row for `tomleger@gmail.com` (override with
-`SEED_OWNER_EMAIL`) and the full 27-task Kitchen Renovation. Google sign-in
-links to that pre-seeded user by email, so on first login the project is
-already there. The seed is re-runnable (it replaces the existing copy).
+### Routes (`src/app`)
 
-## Deploy to Vercel
+- `page.tsx` — dashboard: project list + create.
+- `signin/page.tsx` — Google sign-in (only page with no `AppHeader`/bubble).
+- `p/[projectId]/page.tsx` — project: blueprint header, **Project brief** card,
+  Foreman entry, Next-up, phases (`SectionHeader` + `TaskRow`s). No tabs/dates.
+- `p/[projectId]/foreman/page.tsx` — project-level Foreman chat.
+- `p/[projectId]/t/[taskId]/page.tsx` — task: status, "Edit task & plan"
+  (`TaskEditor`), the guide, per-task Foreman, photos, time, notes, buy list.
+- `p/[projectId]/settings/page.tsx` — collaborators.
+- `api/auth/[...nextauth]` — Auth.js handlers.
+- `api/chat` — **the Foreman** (streaming, tools). `taskId` optional.
+- `api/chat/history` — GET project-level thread (for the bubble).
+- `api/upload` — Vercel Blob client-upload token (`handleUpload`).
+- `api/identify-tools` — vision: photo → tool names (`generateText` + `Output.object`).
+- `api/polish-brief` — text: messy description → structured brief.
 
-The Vercel CLI is the smoothest path (`npm i -g vercel`):
+### Data layer
+
+- `src/db/schema.ts` — Drizzle, `casing: "snake_case"`. Tables: Auth.js
+  (`user`,`account`,`session`,`verificationToken`), `project`,
+  `project_member`, `phase`, `task`, `task_guide`, `note`, `shopping_item`,
+  `time_log`, `photo`, `chat_message`, `user_tool`. Enums: `member_role`,
+  `task_status` (todo|in_progress|done), `chat_role`.
+  **There is no schedule/date model** (removed by design).
+- `src/db/index.ts` — `getDb()` lazy singleton. **Plain `let`, never a
+  `Proxy`** (a Proxy breaks Auth.js adapter introspection).
+- `src/lib/projects.ts` — `server-only` queries + authz: `requireUser`,
+  `getAccess`/`canWrite`, `getProjectOr404`, `getBoard` (phases by
+  `position` → tasks by `position`, + orphans + progress), `computeNextUp`
+  (first non-done in that order), `getTaskDetail`, `getTaskChat`,
+  `getProjectChat`, `getMembers`, `getUserTools`, `listProjectsForUser`.
+- `src/app/actions.ts` — all deterministic mutations (server actions),
+  every one gated by `assertCanWrite`. Used by the UI editors.
+
+### Auth
+
+`src/auth.ts` uses the **lazy config form**: `NextAuth(() => ({...}))`.
+This defers `getDb()`/adapter creation to request time so `next build`
+never opens a DB connection. Google has `allowDangerousEmailAccountLinking:
+true` so a seeded user row links to the real Google login by email
+(safe: single, email-verified provider). Pages call `requireUser()`
+(React-cached) — there is **no middleware/proxy**; authz is in
+RSC/actions.
+
+## 4. The Foreman (most important subsystem)
+
+One route, `src/app/api/chat/route.ts`, drives every chat (per-task,
+project page, and the global bubble). Client: `src/components/task/
+task-chat.tsx` (`useChat` + `DefaultChatTransport`, multimodal, reused
+everywhere; `taskId` may be `null`).
+
+- **Modes:** `taskId` present → task mode (task context + task-scoped
+  tools). `taskId` null → project Foreman (planning; task-scoped tools
+  politely defer).
+- **System prompt** is assembled per request: persona + `ABOUT THIS
+  PROJECT` (title/summary/**brief**) + owned tools + phases + full task
+  list (current order) + current task context *or* project-mode note.
+- **Tools** (all writes wrapped in `commit()` which only reports `ok:true`
+  if the DB write actually succeeded — prevents the model claiming
+  unfulfilled changes). `denied` if not writable; `noTask` if a
+  task-scoped tool is used with no task:
+  - Project-wide: `setProjectBrief`, `updateProjectDetails`, `addTask`,
+    `moveTask`, `deleteTask`, `moveTaskToPhase`, `movePhase`,
+    `renamePhase`, `mergePhases`, `deletePhase`, `recordOwnedTool`.
+  - Task-scoped: `setTaskStatus`, `updateTaskGuide`, `editTaskDetails`,
+    `addNote`, `addBuyItem`, `logTime`.
+- **Persistence:** `onFinish` wipes + reinserts the thread into
+  `chat_message` — keyed by `taskId`, or `taskId IS NULL` for the project
+  thread. Client refreshes server data via `useChat({ onFinish: () =>
+  router.refresh() })`.
+- **UI feedback:** tool result parts render as chips via `TOOL_LABELS`
+  in `task-chat.tsx` — add an entry when you add a tool.
+- **Adding a tool:** add `tool({...})` in the route (mind project vs
+  task-scoped guards), update the `ACTIONS:` line in the system prompt,
+  add a `TOOL_LABELS` entry. Resolve tasks by `#num`, phases by name via
+  `findPhase`. Query phases fresh (`freshPhases()`) inside phase tools so
+  chained calls in one turn don't use a stale snapshot.
+
+Global bubble: `foreman-launcher.tsx` (server: lists projects) →
+`foreman-bubble.tsx` (client FAB; auto-scopes to the lone project or a
+picker; loads history from `/api/chat/history`). Mounted from
+`AppHeader`, so it's on every authed page.
+
+## 5. Design system
+
+Everything is tokens/utilities in `src/app/globals.css` `@theme` —
+restyle there, not per-component. Palette = "Prussian Blueprint": cool
+paper, prussian chrome, one cyan accent. **The `brass*` tokens are
+repointed to the cyan accent** (legacy name; "brass" in code renders
+cyan). Utilities: `.blueprint-surface`, `.sheet-frame`, `.tick-corners`,
+`.dim-rule`, `.eyebrow`, `.sheet-no`, `.font-display`. Shared primitives
+in `src/components/ui.tsx` (`Card` w/ `frame`, `SectionHeader`, `Badge`,
+`Button`, `ProgressBar`, `Eyebrow`).
+
+## 6. Deploy
+
+Git integration: push to `main` → Vercel builds production. `vercel.json`
+sets `buildCommand: "npm run db:deploy && npm run build"`, so **every
+deploy runs `drizzle-kit push --force` then the seed** against Neon
+(env vars, incl. Sensitive ones, are present in the build). The seed is
+**idempotent and non-destructive** (skips if "Kitchen Renovation"
+exists; `SEED_FORCE=1` to force). `push --force` auto-applies schema
+diffs *including drops* — that's how the schedule tables were removed.
+
+CLI is authed as `legertom`, scope `legertoms-projects`, prod alias
+`diy-reno.vercel.app`. Use `vercel inspect <url> --logs` and `vercel
+logs`. (The Vercel MCP connector is 403 for this scope — use the CLI.)
 
 ```bash
-vercel link                                  # link/create the project
-vercel integration add neon                  # provision Postgres (sets DATABASE_URL)
-# create a Blob store + AI Gateway key in the dashboard, add Google creds:
-vercel env add AUTH_SECRET production preview development
-vercel env add AUTH_GOOGLE_ID production preview development
-vercel env add AUTH_GOOGLE_SECRET production preview development
-vercel env pull .env.local --yes             # sync everything locally
-npm run db:push && npm run db:seed           # apply schema + seed
-vercel deploy --prod
+vercel ls                              # find latest deployment
+vercel inspect <url> --logs            # build logs
 ```
 
-Or push to GitHub and import the repo in the Vercel dashboard, then add the
-same environment variables and run `db:push` / `db:seed` against the Neon
-database (e.g. locally after `vercel env pull`).
+## 7. Gotchas (read before editing)
 
-After deploying, add your production callback URL
-(`https://YOUR-DOMAIN/api/auth/callback/google`) to the Google OAuth client.
+1. **`cn()` is an extended tailwind-merge** (`src/lib/utils.ts`). It
+   registers every custom color token. **If you add a color token to
+   `@theme`, add its name to the `color` list there too** — otherwise
+   tailwind-merge treats `text-<token>` and `text-sm` as the same group
+   and strips the color (caused the "can't read" bug; elements then
+   inherit the blueprint header's pale text).
+2. **Form fields:** `globals.css` forces dark text + readable
+   placeholders on all `input/textarea/select`. Don't rely on inherited
+   color (pages under `.blueprint-surface` inherit pale text).
+3. **DB client:** lazy `let`, never `Proxy`. **Auth.js:** lazy config
+   function form. Both keep `next build` from touching the DB.
+4. **Sensitive env vars** can't be `vercel env pull`'d → that's why
+   migrations/seed live in the build (`db:deploy`). Don't try to "fix"
+   this by pulling env locally.
+5. **Neon pooled vs unpooled:** runtime uses pooled `DATABASE_URL`
+   (neon-http); drizzle-kit/seed use `DATABASE_URL_UNPOOLED` first.
+6. **LLM optional args** can arrive as `""`. Treat blank as absent
+   (see `moveTask`/`movePhase`). `??` does **not** catch `""`.
+7. **`commit()`** in the chat route is the honesty boundary — never
+   return `ok:true` for a write that didn't run. Keep new tools inside it.
+8. `react-markdown` (not "AI Elements") renders assistant text — a
+   deliberate, safe choice; an ESLint hook suggests otherwise, ignore it.
+9. ESLint `react-hooks/set-state-in-effect`: don't `setState`
+   synchronously at the top of an effect (see `foreman-bubble.tsx`).
+10. Minor known nit: a task page renders both the inline task chat and
+    the global bubble (two `id="foreman"`). Harmless; fix by making the
+    id unique if it ever matters.
 
-## Roadmap
+## 8. Roadmap / not done
 
-- **AI plan generation** (phase 2): describe a project and have The Foreman
-  scaffold phases, tasks, schedule, tools, and safety. Good fit for the
-  Vercel Workflow DevKit / `DurableAgent` (long, resumable generation).
+- **Migrations**: currently `drizzle-kit push --force` on every deploy
+  (auto-applies drops). Move to generated migrations before there's real
+  multi-user data.
+- **AI plan generation** (phase 2): describe a project → Foreman
+  scaffolds phases/tasks. Good fit for Vercel Workflow `DurableAgent`
+  (long, resumable). Per-step chat is separate.
+- Voice = device dictation into the chat box (no in-app STT).
+- The Claude Code `vercel-plugin` update is a user-side `/plugin` action;
+  nothing in the app depends on it.
