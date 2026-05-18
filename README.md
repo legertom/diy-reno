@@ -51,6 +51,11 @@ endpoint breaks drizzle-kit DDL).
 - `DATABASE_URL` / `DATABASE_URL_UNPOOLED` — Neon. Provisioned by the Vercel
   Neon integration; **marked Sensitive in Vercel, so `vercel env pull` returns
   them blank.** That's why migrations/seed run in the Vercel build (see §6).
+- `NEON_API_KEY` / `NEON_PROJECT_ID` — used **only by the deploy build** (§6)
+  for the §5 migration-safety pipeline: it snapshots prod and gates the
+  migration on a throwaway Neon branch before touching live data. Set both in
+  the Vercel project env (Production). `NEON_PROJECT_ID` is auto-injected by
+  the Neon integration; `NEON_API_KEY` is a personal Neon API key you add.
 - `AUTH_SECRET` — `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`
 - `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` — Google OAuth web client.
   Redirect URI: `https://<domain>/api/auth/callback/google` (+ localhost).
@@ -79,21 +84,31 @@ endpoint breaks drizzle-kit DDL).
 
 ### Data layer
 
-- `src/db/schema.ts` — Drizzle, `casing: "snake_case"`. Tables: Auth.js
-  (`user`,`account`,`session`,`verificationToken`), `project`,
+- `src/db/schema.ts` — Drizzle, `casing: "snake_case"`. Entity model is
+  **User → Property → Project → Phase → Task**: a `property` is the physical
+  place (entered once, reused by every project on it); `project.property_id`
+  is a nullable FK (`on delete set null`) so introducing Property was a
+  non-destructive migration. Tables: Auth.js
+  (`user`,`account`,`session`,`verificationToken`), `property`, `project`,
   `project_member`, `phase`, `task`, `task_guide`, `note`, `shopping_item`,
   `time_log`, `photo`, `chat_message`, `user_tool`. Enums: `member_role`,
   `task_status` (todo|in_progress|done), `chat_role`.
   **There is no schedule/date model** (removed by design).
+  **Sharing/authz stay at the project level** — Property is purely the
+  organizing parent and has no collaborator roles of its own.
 - `src/db/index.ts` — `getDb()` lazy singleton. **Plain `let`, never a
   `Proxy`** (a Proxy breaks Auth.js adapter introspection).
 - `src/lib/projects.ts` — `server-only` queries + authz: `requireUser`,
-  `getAccess`/`canWrite`, `getProjectOr404`, `getBoard` (phases by
+  `getAccess`/`canWrite`, `assertCanWrite`, `assertOwnsProperty`
+  (Property writes are owner-only), `getProjectOr404`, `getBoard` (phases by
   `position` → tasks by `position`, + orphans + progress), `computeNextUp`
   (first non-done in that order), `getTaskDetail`, `getTaskChat`,
-  `getProjectChat`, `getMembers`, `getUserTools`, `listProjectsForUser`.
+  `getProjectChat`, `getMembers`, `getUserTools`, `listProjectsForUser`
+  (each project carries its `property` for grouping).
 - `src/app/actions.ts` — all deterministic mutations (server actions),
-  every one gated by `assertCanWrite`. Used by the UI editors.
+  project mutations gated by `assertCanWrite`, Property edits by
+  `assertOwnsProperty`; `createProject` nests new projects under a Property.
+  Used by the UI editors.
 
 ### Auth
 
@@ -158,12 +173,22 @@ in `src/components/ui.tsx` (`Card` w/ `frame`, `SectionHeader`, `Badge`,
 ## 6. Deploy
 
 Git integration: push to `main` → Vercel builds production. `vercel.json`
-sets `buildCommand: "npm run db:deploy && npm run build"`, so **every
-deploy runs `drizzle-kit push --force` then the seed** against Neon
-(env vars, incl. Sensitive ones, are present in the build). The seed is
-**idempotent and non-destructive** (skips if "Kitchen Renovation"
-exists; `SEED_FORCE=1` to force). `push --force` auto-applies schema
-diffs *including drops* — that's how the schedule tables were removed.
+sets `buildCommand: "npm run db:deploy && npm run build"`. **`db:deploy` is
+now the §5 migration-safety pipeline (`scripts/db-deploy.ts`), not blind
+`drizzle-kit push --force`.** Per deploy, in order: (1) snapshot prod into a
+recorded Neon branch (`presnapshot-…`, the rollback target); (2) clone a
+throwaway Neon branch and apply the reviewed migration **twice**, asserting
+it is non-destructive + idempotent — **if this gate fails the deploy aborts
+before production is touched**; (3) apply the reviewed idempotent SQL in
+`drizzle/` to prod (no `push --force`); (4) run the idempotent seed; (5)
+verify prod (live project intact, owned correctly, nested under its
+Property). Any failure exits non-zero so the build fails and nothing ships;
+rollback = restore the logged snapshot branch. Requires `NEON_API_KEY` +
+`NEON_PROJECT_ID` in the build env. The seed remains **idempotent and
+non-destructive** (skips if "Kitchen Renovation" exists; `SEED_FORCE=1` to
+force). Schema changes are now **generated + reviewed** SQL migrations
+(`drizzle-kit generate` → hand-reviewed idempotent SQL); never reintroduce
+blind `push --force` for a structural change against live data.
 
 CLI is authed as `legertom`, scope `legertoms-projects`, prod alias
 `diy-reno.vercel.app`. Use `vercel inspect <url> --logs` and `vercel
@@ -206,9 +231,12 @@ vercel inspect <url> --logs            # build logs
 
 ## 8. Roadmap / not done
 
-- **Migrations**: currently `drizzle-kit push --force` on every deploy
-  (auto-applies drops). Move to generated migrations before there's real
-  multi-user data.
+- **Migrations**: ✅ moved off blind `drizzle-kit push --force` to
+  generated + reviewed idempotent SQL applied by the §5 pipeline
+  (`scripts/db-deploy.ts`, see §6). Future structural changes:
+  `drizzle-kit generate` → review/make idempotent → the pipeline applies
+  it (snapshot + branch idempotency gate first). `drizzle/0000_baseline.sql`
+  is the diff baseline only and is never executed.
 - **AI plan generation** (phase 2): describe a project → Foreman
   scaffolds phases/tasks. Good fit for Vercel Workflow `DurableAgent`
   (long, resumable). Per-step chat is separate.

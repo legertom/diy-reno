@@ -235,10 +235,32 @@ async function main() {
     }
   }
 
+  // Nest the project under a Property. Idempotent: reuse the owner's
+  // existing place if one exists (e.g. the migration backfill already made
+  // one), otherwise create the Brooklyn apartment. Non-destructive.
+  let [place] = await db
+    .select()
+    .from(schema.properties)
+    .where(eq(schema.properties.ownerId, owner.id));
+  if (!place) {
+    [place] = await db
+      .insert(schema.properties)
+      .values({
+        ownerId: owner.id,
+        name: "Brooklyn apartment",
+        type: "apartment",
+        ownership: "co-op",
+        location: "Brooklyn, NY",
+      })
+      .returning();
+    console.log(`Created Property "Brooklyn apartment" for ${SEED_OWNER_EMAIL}`);
+  }
+
   const [project] = await db
     .insert(schema.projects)
     .values({
       ownerId: owner.id,
+      propertyId: place.id,
       title: "Kitchen Renovation",
       summary: "Full DIY gut + refinish — walls, frames, floor, fixtures.",
     })

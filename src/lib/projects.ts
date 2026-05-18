@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { getDb } from "@/db";
 import {
   users,
+  properties,
   projects,
   projectMembers,
   phases,
@@ -46,16 +47,25 @@ async function reconcileInvites(userId: string, email?: string | null) {
 export async function listProjectsForUser(userId: string, email?: string | null) {
   await reconcileInvites(userId, email);
   const db = getDb();
+  const propertyOf = (p: { id: string; name: string } | null) =>
+    p ? { id: p.id, name: p.name } : null;
+
   const owned = await db
-    .select()
+    .select({ project: projects, property: properties })
     .from(projects)
+    .leftJoin(properties, eq(projects.propertyId, properties.id))
     .where(eq(projects.ownerId, userId))
     .orderBy(desc(projects.updatedAt));
 
   const shared = await db
-    .select({ project: projects, role: projectMembers.role })
+    .select({
+      project: projects,
+      property: properties,
+      role: projectMembers.role,
+    })
     .from(projectMembers)
     .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .leftJoin(properties, eq(projects.propertyId, properties.id))
     .where(
       and(
         eq(projectMembers.userId, userId),
@@ -65,10 +75,18 @@ export async function listProjectsForUser(userId: string, email?: string | null)
     .orderBy(desc(projects.updatedAt));
 
   return {
-    owned: owned.map((p) => ({ ...p, role: "owner" as Role })),
+    owned: owned.map((r) => ({
+      ...r.project,
+      role: "owner" as Role,
+      property: propertyOf(r.property),
+    })),
     shared: shared
       .filter((s) => s.project.ownerId !== userId)
-      .map((s) => ({ ...s.project, role: s.role as Role })),
+      .map((s) => ({
+        ...s.project,
+        role: s.role as Role,
+        property: propertyOf(s.property),
+      })),
   };
 }
 
@@ -111,6 +129,20 @@ export async function assertCanWrite(projectId: string) {
   const role = await getAccess(projectId, user.id, user.email);
   if (!canWrite(role)) throw new Error("Not authorized to edit this project");
   return { user, role: role as Role };
+}
+
+/** Property writes are owner-only — sharing stays at the project level
+ *  (§3.1), so a Property has no collaborator roles of its own. */
+export async function assertOwnsProperty(propertyId: string) {
+  const user = await requireUser();
+  const db = getDb();
+  const [p] = await db
+    .select({ ownerId: properties.ownerId })
+    .from(properties)
+    .where(eq(properties.id, propertyId));
+  if (!p || p.ownerId !== user.id)
+    throw new Error("Not authorized to edit this property");
+  return { user };
 }
 
 export async function getProjectOr404(projectId: string) {

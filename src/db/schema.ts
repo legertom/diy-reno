@@ -98,20 +98,61 @@ export const userTools = pgTable(
   ],
 );
 
-export const projects = pgTable("project", {
-  id: uuid().primaryKey(),
-  ownerId: text("owner_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  /** Short tagline shown on cards. */
-  summary: text("summary"),
-  /** Long-form ground truth the Foreman reads in every conversation
-   *  (e.g. "walls are plaster not drywall, 1920s house, no garage"). */
-  brief: text("brief"),
-  createdAt: now(),
-  updatedAt: now(),
-});
+/** The physical place. Entered once, reused by every project on it.
+ *  Sharing/authz stay at the project level — Property is the organizing
+ *  parent only. Floor-plan / measurement fields are nullable until the
+ *  Phase 5 ingestion lands. */
+export const properties = pgTable(
+  "property",
+  {
+    id: uuid().primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** apartment | house | other — free-text; constrained in the UI. */
+    type: text("type"),
+    /** condo | co-op | owned | rented. */
+    ownership: text("ownership"),
+    location: text("location"),
+    /** Nullable until floor-plan ingestion (Phase 5). */
+    floorPlanUrl: text("floor_plan_url"),
+    /** Rooms/spaces stub — populated by later measurement work. */
+    rooms: jsonb("rooms")
+      .$type<{ name: string; notes?: string }[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  (p) => [index("property_owner_idx").on(p.ownerId)],
+);
+
+export const projects = pgTable(
+  "project",
+  {
+    id: uuid().primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The place this work is on. Nullable so the introduction of
+     *  Property is a non-destructive migration; the backfill nests every
+     *  existing project under an auto-created Property. set null on delete
+     *  so removing a Property never destroys live project data. */
+    propertyId: text("property_id").references(() => properties.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    /** Short tagline shown on cards. */
+    summary: text("summary"),
+    /** Long-form ground truth the Foreman reads in every conversation
+     *  (e.g. "walls are plaster not drywall, 1920s house, no garage"). */
+    brief: text("brief"),
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  (p) => [index("project_property_idx").on(p.propertyId)],
+);
 
 export const projectMembers = pgTable(
   "project_member",
@@ -315,8 +356,17 @@ export const chatMessages = pgTable(
 /*  Relations                                                           */
 /* ------------------------------------------------------------------ */
 
+export const propertiesRelations = relations(properties, ({ one, many }) => ({
+  owner: one(users, { fields: [properties.ownerId], references: [users.id] }),
+  projects: many(projects),
+}));
+
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   owner: one(users, { fields: [projects.ownerId], references: [users.id] }),
+  property: one(properties, {
+    fields: [projects.propertyId],
+    references: [properties.id],
+  }),
   members: many(projectMembers),
   phases: many(phases),
   tasks: many(tasks),
@@ -358,6 +408,7 @@ export const phasesRelations = relations(phases, ({ one, many }) => ({
 
 export type User = typeof users.$inferSelect;
 export type UserTool = typeof userTools.$inferSelect;
+export type Property = typeof properties.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type Phase = typeof phases.$inferSelect;

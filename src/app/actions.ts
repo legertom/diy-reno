@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { del } from "@vercel/blob";
 import { getDb } from "@/db";
 import {
+  properties,
   projects,
   projectMembers,
   tasks,
@@ -16,7 +17,11 @@ import {
   photos,
   userTools,
 } from "@/db/schema";
-import { assertCanWrite, requireUser } from "@/lib/projects";
+import {
+  assertCanWrite,
+  assertOwnsProperty,
+  requireUser,
+} from "@/lib/projects";
 
 async function projectIdForTask(taskId: string): Promise<string> {
   const db = getDb();
@@ -35,18 +40,75 @@ function revalidateProject(projectId: string) {
 
 /* ---------------------------------- projects --------------------------- */
 
+/** Reuse the owner's place if they have one, else create a default. Keeps
+ *  the data-model invariant that every project is nested under a Property
+ *  (the conversational two-stage intake is Phase 4). */
+async function ensurePropertyId(userId: string): Promise<string> {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: properties.id })
+    .from(properties)
+    .where(eq(properties.ownerId, userId));
+  if (existing) return existing.id;
+  const [created] = await db
+    .insert(properties)
+    .values({ ownerId: userId, name: "My place" })
+    .returning({ id: properties.id });
+  return created.id;
+}
+
 export async function createProject(formData: FormData) {
   const user = await requireUser();
   const title = String(formData.get("title") || "").trim();
   const summary = String(formData.get("summary") || "").trim() || null;
   if (!title) throw new Error("A project name is required");
   const db = getDb();
+  const propertyId = await ensurePropertyId(user.id);
   const [created] = await db
     .insert(projects)
-    .values({ ownerId: user.id, title, summary })
+    .values({ ownerId: user.id, propertyId, title, summary })
     .returning({ id: projects.id });
   revalidatePath("/");
   redirect(`/p/${created.id}`);
+}
+
+export async function createProperty(formData: FormData) {
+  const user = await requireUser();
+  const name = String(formData.get("name") || "").trim();
+  if (!name) throw new Error("A property name is required");
+  const db = getDb();
+  await db.insert(properties).values({
+    ownerId: user.id,
+    name,
+    type: String(formData.get("type") || "").trim() || null,
+    ownership: String(formData.get("ownership") || "").trim() || null,
+    location: String(formData.get("location") || "").trim() || null,
+  });
+  revalidatePath("/");
+}
+
+export async function updateProperty(input: {
+  propertyId: string;
+  name: string;
+  type: string;
+  ownership: string;
+  location: string;
+}) {
+  const name = input.name.trim();
+  if (!name) throw new Error("Property name is required");
+  await assertOwnsProperty(input.propertyId);
+  const db = getDb();
+  await db
+    .update(properties)
+    .set({
+      name,
+      type: input.type.trim() || null,
+      ownership: input.ownership.trim() || null,
+      location: input.location.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(properties.id, input.propertyId));
+  revalidatePath("/");
 }
 
 export async function updateProject(input: {
