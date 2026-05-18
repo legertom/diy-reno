@@ -192,38 +192,6 @@ const ITEMS: Item[] = [
   } },
 ];
 
-type Day = {
-  date: string;
-  dateISO?: string;
-  label?: string;
-  weekend?: boolean;
-  rest?: boolean;
-  restNote?: string;
-  items?: string[];
-  why?: string;
-};
-const SCHEDULE: ({ week: string } | Day)[] = [
-  { week: "Week 1 — Cleanup, frame strip cycles, floor demo, asbestos sample" },
-  { date: "Sun May 17", dateISO: "2026-05-17", label: "Sunday · friends", weekend: true, items: ["t9", "t10", "t11", "t2-scrape1", "t3-scrape1", "t14", "t15", "t16a", "t24", "t25"], why: "Friends pull the floor while you do streak remediation + frame scraping. Bag sample + place orders tonight." },
-  { date: "Mon May 18", dateISO: "2026-05-18", label: "Monday", items: ["t16b", "t2-extra", "t3-extra"], why: "Ship the sample (clock starts). Apply another stripper coat to whichever frame still has paint." },
-  { date: "Tue May 19", dateISO: "2026-05-19", label: "Tuesday", items: ["t2-final", "t3-final"], why: "After ~24h dwell: final scrape, neutralize, light sand on both frames. Asbestos lab Day 1." },
-  { date: "Wed May 20", dateISO: "2026-05-20", label: "Wednesday", items: ["t12"], why: "Frames are done — primer coat 1 (walls + trim together)." },
-  { date: "Thu May 21", dateISO: "2026-05-21", label: "Thursday · rest", rest: true, restNote: "Primer curing. Asbestos lab Day 3." },
-  { date: "Fri May 22", dateISO: "2026-05-22", label: "Friday", items: ["t13"], why: "Primer coat 2. Lab results may land today." },
-  { week: "Week 2 — Asbestos result, lino scrape, paint 1, paint 2" },
-  { date: "Sat May 23", dateISO: "2026-05-23", label: "Saturday · friends", weekend: true, items: ["t17", "t18"], why: "Lab result day. NEGATIVE → scrape lino + mastic, prep subfloor. POSITIVE → STOP floor work; spend day on stud marking + abatement quotes." },
-  { date: "Sun May 24", dateISO: "2026-05-24", label: "Sunday · rest", rest: true, restNote: "Primer fully cured. Floor area settling." },
-  { date: "Mon May 25", dateISO: "2026-05-25", label: "Monday", items: ["t20"], why: "Finish paint coat 1. Drop cloths over exposed subfloor." },
-  { date: "Tue May 26", dateISO: "2026-05-26", label: "Tuesday · rest", rest: true, restNote: "Paint curing." },
-  { date: "Wed May 27", dateISO: "2026-05-27", label: "Wednesday", items: ["t21"], why: "Finish paint coat 2 — walls DONE." },
-  { date: "Thu May 28", dateISO: "2026-05-28", label: "Thursday", items: ["t19a"], why: "Begin flooring. Tape baseboards to protect paint." },
-  { date: "Fri May 29", dateISO: "2026-05-29", label: "Friday", items: ["t19b"], why: "Keep laying floor." },
-  { week: "Week 3 — Floor finish + fixtures + move in" },
-  { date: "Sat May 30", dateISO: "2026-05-30", label: "Saturday · friends", weekend: true, items: ["t19c", "t22", "t23"], why: "Floor finishes, CordMate up, shelves hung. Friends speed everything up." },
-  { date: "Sun May 31", dateISO: "2026-05-31", label: "Sunday · friends", weekend: true, items: ["t26"], why: "Stock shelves + move back in." },
-  { date: "On arrival", dateISO: "9999-12-31", label: "When delivered", items: ["t27"], why: "Slot appliances in once they ship." },
-];
-
 async function main() {
   const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
@@ -290,7 +258,6 @@ async function main() {
   }
 
   // Tasks + guides.
-  const taskIdByKey = new Map<string, string>();
   for (let i = 0; i < ITEMS.length; i++) {
     const it = ITEMS[i];
     const [t] = await db
@@ -314,7 +281,6 @@ async function main() {
         position: i,
       })
       .returning();
-    taskIdByKey.set(it.key, t.id);
     if (it.guide) {
       await db.insert(schema.taskGuides).values({
         taskId: t.id,
@@ -323,54 +289,6 @@ async function main() {
         safety: it.guide.safety ?? [],
         steps: it.guide.steps ?? [],
         tips: it.guide.tips ?? [],
-      });
-    }
-  }
-
-  // Schedule sections + days + day→task links.
-  let sectionId: string | null = null;
-  let sectionPos = 0;
-  let dayPos = 0;
-  for (const entry of SCHEDULE) {
-    if ("week" in entry) {
-      const [s] = await db
-        .insert(schema.scheduleSections)
-        .values({
-          projectId: project.id,
-          title: entry.week,
-          position: sectionPos++,
-        })
-        .returning();
-      sectionId = s.id;
-      continue;
-    }
-    const iso =
-      entry.dateISO && entry.dateISO !== "9999-12-31"
-        ? entry.dateISO
-        : null;
-    const [d] = await db
-      .insert(schema.scheduleDays)
-      .values({
-        projectId: project.id,
-        sectionId,
-        label: entry.date,
-        dateIso: iso,
-        sublabel: entry.label ?? null,
-        isWeekend: !!entry.weekend,
-        isRest: !!entry.rest,
-        restNote: entry.restNote ?? null,
-        why: entry.why ?? null,
-        position: dayPos++,
-      })
-      .returning();
-    const items = entry.items ?? [];
-    for (let k = 0; k < items.length; k++) {
-      const taskId = taskIdByKey.get(items[k]);
-      if (!taskId) continue;
-      await db.insert(schema.scheduleDayTasks).values({
-        dayId: d.id,
-        taskId,
-        position: k,
       });
     }
   }

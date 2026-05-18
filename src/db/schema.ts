@@ -5,7 +5,6 @@ import {
   integer,
   boolean,
   jsonb,
-  date,
   primaryKey,
   index,
   uniqueIndex,
@@ -287,48 +286,6 @@ export const photos = pgTable(
   ],
 );
 
-export const scheduleSections = pgTable("schedule_section", {
-  id: uuid().primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  position: integer("position").notNull().default(0),
-});
-
-export const scheduleDays = pgTable("schedule_day", {
-  id: uuid().primaryKey(),
-  projectId: text("project_id")
-    .notNull()
-    .references(() => projects.id, { onDelete: "cascade" }),
-  sectionId: text("section_id").references(() => scheduleSections.id, {
-    onDelete: "set null",
-  }),
-  label: text("label").notNull(),
-  dateIso: date("date_iso"),
-  sublabel: text("sublabel"),
-  isWeekend: boolean("is_weekend").notNull().default(false),
-  isRest: boolean("is_rest").notNull().default(false),
-  restNote: text("rest_note"),
-  why: text("why"),
-  position: integer("position").notNull().default(0),
-});
-
-export const scheduleDayTasks = pgTable(
-  "schedule_day_task",
-  {
-    id: uuid().primaryKey(),
-    dayId: text("day_id")
-      .notNull()
-      .references(() => scheduleDays.id, { onDelete: "cascade" }),
-    taskId: text("task_id")
-      .notNull()
-      .references(() => tasks.id, { onDelete: "cascade" }),
-    position: integer("position").notNull().default(0),
-  },
-  (s) => [index("sdt_day_idx").on(s.dayId)],
-);
-
 /** Persisted AI chat — one shared thread per task (or project). */
 export const chatMessages = pgTable(
   "chat_message",
@@ -396,42 +353,6 @@ export const phasesRelations = relations(phases, ({ one, many }) => ({
   tasks: many(tasks),
 }));
 
-export const scheduleSectionsRelations = relations(
-  scheduleSections,
-  ({ one, many }) => ({
-    project: one(projects, {
-      fields: [scheduleSections.projectId],
-      references: [projects.id],
-    }),
-    days: many(scheduleDays),
-  }),
-);
-
-export const scheduleDaysRelations = relations(
-  scheduleDays,
-  ({ one, many }) => ({
-    section: one(scheduleSections, {
-      fields: [scheduleDays.sectionId],
-      references: [scheduleSections.id],
-    }),
-    entries: many(scheduleDayTasks),
-  }),
-);
-
-export const scheduleDayTasksRelations = relations(
-  scheduleDayTasks,
-  ({ one }) => ({
-    day: one(scheduleDays, {
-      fields: [scheduleDayTasks.dayId],
-      references: [scheduleDays.id],
-    }),
-    task: one(tasks, {
-      fields: [scheduleDayTasks.taskId],
-      references: [tasks.id],
-    }),
-  }),
-);
-
 export type User = typeof users.$inferSelect;
 export type UserTool = typeof userTools.$inferSelect;
 export type Project = typeof projects.$inferSelect;
@@ -443,7 +364,4 @@ export type Note = typeof notes.$inferSelect;
 export type ShoppingItem = typeof shoppingItems.$inferSelect;
 export type TimeLog = typeof timeLogs.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
-export type ScheduleSection = typeof scheduleSections.$inferSelect;
-export type ScheduleDay = typeof scheduleDays.$inferSelect;
-export type ScheduleDayTask = typeof scheduleDayTasks.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;

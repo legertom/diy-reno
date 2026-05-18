@@ -15,9 +15,6 @@ import {
   shoppingItems,
   timeLogs,
   photos,
-  scheduleSections,
-  scheduleDays,
-  scheduleDayTasks,
   chatMessages,
   userTools,
   type Task,
@@ -236,61 +233,6 @@ export async function getBoard(projectId: string) {
   };
 }
 
-export async function getSchedule(projectId: string) {
-  const db = getDb();
-  const [sections, days, entries, taskMap] = await Promise.all([
-    db
-      .select()
-      .from(scheduleSections)
-      .where(eq(scheduleSections.projectId, projectId))
-      .orderBy(asc(scheduleSections.position)),
-    db
-      .select()
-      .from(scheduleDays)
-      .where(eq(scheduleDays.projectId, projectId))
-      .orderBy(asc(scheduleDays.position)),
-    db
-      .select()
-      .from(scheduleDayTasks)
-      .innerJoin(scheduleDays, eq(scheduleDayTasks.dayId, scheduleDays.id))
-      .where(eq(scheduleDays.projectId, projectId))
-      .orderBy(asc(scheduleDayTasks.position)),
-    loadTasksWithMeta(projectId),
-  ]);
-
-  const entriesByDay = new Map<string, TaskWithGuide[]>();
-  for (const e of entries) {
-    const t = taskMap.get(e.schedule_day_task.taskId);
-    if (!t) continue;
-    const arr = entriesByDay.get(e.schedule_day_task.dayId) ?? [];
-    arr.push(t);
-    entriesByDay.set(e.schedule_day_task.dayId, arr);
-  }
-
-  const daysBySection = new Map<string | null, typeof days>();
-  for (const d of days) {
-    const key = d.sectionId ?? null;
-    const arr = daysBySection.get(key) ?? [];
-    arr.push(d);
-    daysBySection.set(key, arr);
-  }
-
-  return {
-    sections: sections.map((s) => ({
-      ...s,
-      days: (daysBySection.get(s.id) ?? []).map((d) => ({
-        ...d,
-        tasks: entriesByDay.get(d.id) ?? [],
-      })),
-    })),
-    looseDays: (daysBySection.get(null) ?? []).map((d) => ({
-      ...d,
-      tasks: entriesByDay.get(d.id) ?? [],
-    })),
-    taskMap,
-  };
-}
-
 export async function getTaskDetail(projectId: string, taskId: string) {
   const db = getDb();
   const [taskRow] = await db
@@ -415,18 +357,18 @@ export async function getTaskChat(taskId: string) {
   }));
 }
 
-/** First scheduled, not-done task — drives the "Next up" card. */
+/** First not-done task in phase + position order — drives "Next up". */
 export function computeNextUp(
-  schedule: Awaited<ReturnType<typeof getSchedule>>,
-): { task: TaskWithGuide; dayLabel: string } | null {
-  const ordered = [
-    ...schedule.sections.flatMap((s) => s.days),
-    ...schedule.looseDays,
-  ];
-  for (const d of ordered) {
-    for (const t of d.tasks) {
-      if (t.status !== "done") return { task: t, dayLabel: d.label };
+  board: Awaited<ReturnType<typeof getBoard>>,
+): { task: TaskWithGuide; phaseName: string } | null {
+  for (const phase of board.phases) {
+    for (const t of phase.tasks) {
+      if (t.status !== "done")
+        return { task: t, phaseName: phase.name };
     }
+  }
+  for (const t of board.orphans) {
+    if (t.status !== "done") return { task: t, phaseName: "Unphased" };
   }
   return null;
 }
