@@ -1,14 +1,15 @@
 # DIY Reno — Implementation Plan
 
-> Status: **Phase 1 code-complete + locally verified; runtime §5 proof
-> pending one deploy.** §5 signed off by the owner 2026-05-18 (as written).
-> All code written; `tsc`/`eslint`/`next build` green; `next build` still
-> opens no DB connection. The snapshot / branch-idempotency-gate /
-> post-migration verification are built but execute + verify only during a
-> Vercel deploy (the only env with Neon secrets) — Phase 1 is not
-> *verified-done* until one deploy goes green. Nothing has touched live data
-> yet. Date: 2026-05-17. Branch: `claude/cool-morse-fc6a66`. Read `AGENTS.md`
-> and `README.md` first; this plan assumes both.
+> Status: **Phase 1 complete and verified in production (2026-05-18).** §5
+> signed off by the owner 2026-05-18 (as written). Deploy `1c18917` ran the
+> full §5 pipeline against prod: snapshot taken + recorded, idempotency gate
+> PASSED on a real Neon branch copy, reviewed migration applied, live
+> "Kitchen Renovation" intact/owned/nested under a Property, post-migration
+> verification passed, app live. All Phase 1 deliverables and the §5
+> checklist are verified from build logs (not from intent). **Next: Phase 2
+> (Foreman memory + compaction + reset).** Date: 2026-05-17. Branch:
+> `claude/cool-morse-fc6a66`. Read `AGENTS.md` and `README.md` first; this
+> plan assumes both.
 
 ---
 
@@ -334,27 +335,26 @@ live rows.
    exists, is owned correctly, and is nested under its Property. Documented
    rollback = restore the Neon snapshot.
 
-Checklist (all required before Phase 1 is "done"):
+Checklist (all required before Phase 1 is "done") — **all verified from the
+production build logs of deploy `1c18917` (2026-05-18)**:
+- [x] Neon snapshot taken & location recorded — branch
+      `presnapshot-2026-05-18T04-54-51-103Z-1c18917`
+      (id `br-polished-dew-apctx5ob`); rollback = restore it in Neon.
 - [x] Generated migration reviewed — `drizzle/0001_add_property.sql`,
       purely additive, no `DROP`, nullable FK, `on delete set null`.
+- [x] Backfill proven idempotent on a Neon branch copy — pipeline cloned a
+      `migrationtest-…` branch from the 1 live project, applied the
+      migration twice, asserted non-destructive + idempotent: `Gate PASSED`.
 - [x] Deploy pipeline switched off blind `push --force` for structural
-      changes — `db:deploy` → `scripts/db-deploy.ts` (locally verified;
-      `tsc`/`eslint`/`next build` green).
-- [ ] Neon snapshot taken & location recorded — **automated** as step 1 of
-      the pipeline; executes + is logged on the first deploy.
-- [ ] Backfill proven idempotent on a Neon branch copy — **automated** as
-      the pipeline's gate (applies the migration twice on a throwaway Neon
-      branch, asserts non-destructive + idempotent); runs on first deploy
-      and **aborts the deploy before prod is touched if it fails**.
-- [ ] Post-migration verification of the live seed passes — **automated** as
-      the final pipeline step; runs on first deploy, fails the build on
-      mismatch (rollback = restore the logged snapshot branch).
+      changes — `db:deploy` → `scripts/db-deploy.ts`.
+- [x] Post-migration verification of the live seed passes — `[§5.5]
+      Production verified — live data intact, owned correctly, nested under
+      Property.` Seed correctly skipped the existing live project.
 
-> The last three are *built and locally validated* but, by design, can only
-> be **executed and verified during a Vercel deploy** (that is the only
-> environment with the Neon secrets). They are deliberately left unchecked
-> until that deploy runs — per "never claim done from intent." Phase 1 is
-> code-complete; it is not *verified-done* until one deploy goes green.
+> The first failed deploy (`cd94ba9`) proved the fail-safe: a bug in the
+> pipeline's baseline probe aborted the run *after* the snapshot and *before*
+> any production write — nothing shipped, no data touched. Fixed in
+> `1c18917`, which then passed the gate and applied cleanly.
 
 ---
 
