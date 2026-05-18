@@ -38,7 +38,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), MANAGE PHASES — moveTaskToPhase (put a task in a different/new phase), movePhase (reorder phases before/after another), renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), MANAGE PHASES — moveTaskToPhase (put a task in a different/new phase), movePhase (reorder phases before/after another), renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
 - SAFETY ON REWRITE: never silently drop a hazard that still applies under the new method. Re-derive safety for the NEW method from scratch. Example: switching from heat-gun stripping to SANDING old paint does NOT remove lead risk — sanding pre-1978 paint creates lead dust and still requires a lead test, containment, HEPA, and a P100. Keep the lead/asbestos warnings that still apply; only remove ones genuinely irrelevant to the new method.
@@ -256,6 +256,45 @@ export async function POST(req: Request) {
         );
       },
     }),
+    updateProjectDetails: tool({
+      description:
+        "Rename the project and/or change its short tagline. Pass only what you're changing. (For the long ground-truth context use setProjectBrief instead.)",
+      inputSchema: z.object({
+        title: z.string().optional(),
+        summary: z
+          .string()
+          .optional()
+          .describe("Short one-line tagline shown on cards"),
+      }),
+      execute: async ({ title, summary }) => {
+        if (!writable) return denied;
+        const t = title?.trim();
+        const s = summary?.trim();
+        if (!t && s === undefined)
+          return {
+            ok: false as const,
+            message: "Nothing to change — give a title and/or tagline.",
+          };
+        return commit(
+          "updateProjectDetails",
+          async () => {
+            const patch: {
+              title?: string;
+              summary?: string | null;
+              updatedAt: Date;
+            } = { updatedAt: new Date() };
+            if (t) patch.title = t;
+            if (s !== undefined) patch.summary = s || null;
+            await db
+              .update(projects)
+              .set(patch)
+              .where(eq(projects.id, projectId));
+            touch();
+          },
+          { title: t, summary: s },
+        );
+      },
+    }),
     addTask: tool({
       description:
         "Create a NEW task in this project. Optionally place it in a phase (use an exact name from PROJECT PHASES, or a new name to create that phase) and give it steps/tools/materials/safety/tips. It's added to the end of the list — use moveTask afterward if the user wants it in a specific spot.",
@@ -451,6 +490,30 @@ export async function POST(req: Request) {
         );
       },
     }),
+    deleteTask: tool({
+      description:
+        "Permanently delete a task (by its #) and its notes/time logs/guide. Photos and buy-list items it created stay at the project level. Use only on explicit request.",
+      inputSchema: z.object({
+        task: z.string().describe("Task # to delete"),
+      }),
+      execute: async ({ task }) => {
+        if (!writable) return denied;
+        const tnum = task.replace(/^#/, "").trim().toLowerCase();
+        const target = allTasks.find(
+          (x) => x.num.trim().toLowerCase() === tnum,
+        );
+        if (!target)
+          return { ok: false as const, message: `No task #${task}.` };
+        return commit(
+          "deleteTask",
+          async () => {
+            await db.delete(tasks).where(eq(tasks.id, target.id));
+            touch();
+          },
+          { deleted: `#${target.num} ${target.title}` },
+        );
+      },
+    }),
     moveTaskToPhase: tool({
       description:
         "Move a task into a different phase. Identify the task by its # and the phase by an exact name from PROJECT PHASES; if the phase name doesn't exist, a new phase is created at the end.",
@@ -608,6 +671,27 @@ export async function POST(req: Request) {
             touch();
           },
           { merged: from, into },
+        );
+      },
+    }),
+    deletePhase: tool({
+      description:
+        "Delete a phase (by exact name from PROJECT PHASES). Its tasks are NOT deleted — they become unphased. To keep them grouped, use mergePhases instead.",
+      inputSchema: z.object({
+        phase: z.string().min(1),
+      }),
+      execute: async ({ phase }) => {
+        if (!writable) return denied;
+        return commit(
+          "deletePhase",
+          async () => {
+            const phs = await freshPhases();
+            const target = findPhase(phs, phase);
+            if (!target) throw new Error(`No phase "${phase}"`);
+            await db.delete(phases).where(eq(phases.id, target.id));
+            touch();
+          },
+          { deletedPhase: phase },
         );
       },
     }),
