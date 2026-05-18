@@ -376,11 +376,16 @@ export async function POST(req: Request) {
       execute: async ({ task, before, after }) => {
         if (!writable) return denied;
         const norm = (s: string) => s.replace(/^#/, "").trim().toLowerCase();
-        const anchorNum = before ?? after;
-        if (!anchorNum || (before && after))
+        // LLMs often send "" for the unused optional — treat blank as absent.
+        const bef = before?.trim() ? before.trim() : undefined;
+        const aft = after?.trim() ? after.trim() : undefined;
+        const anchorNum = bef ?? aft;
+        const placeBefore = !!bef;
+        if (!anchorNum || (bef && aft))
           return {
             ok: false as const,
-            message: "Provide exactly one of `before` or `after`.",
+            message:
+              "Tell me one anchor: place it BEFORE a task # or AFTER a task #, not both.",
           };
         const moving = allTasks.find((x) => norm(x.num) === norm(task));
         const anchor = allTasks.find((x) => norm(x.num) === norm(anchorNum));
@@ -401,7 +406,7 @@ export async function POST(req: Request) {
           async () => {
             const rest = allTasks.filter((x) => x.id !== moving.id);
             const ai = rest.findIndex((x) => x.id === anchor.id);
-            const insertAt = before ? ai : ai + 1;
+            const insertAt = placeBefore ? ai : ai + 1;
             const ordered = [
               ...rest.slice(0, insertAt),
               moving,
@@ -421,7 +426,7 @@ export async function POST(req: Request) {
           },
           {
             moved: `#${moving.num}`,
-            placement: before ? "before" : "after",
+            placement: placeBefore ? "before" : "after",
             anchor: `#${anchor.num}`,
           },
         );
