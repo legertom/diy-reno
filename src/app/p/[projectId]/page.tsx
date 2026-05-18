@@ -15,6 +15,7 @@ import {
   SectionHeader,
 } from "@/components/ui";
 import { TaskRow, type RowTask } from "@/components/task-row";
+import { ProjectEditor } from "@/components/project-editor";
 
 const stripNo = (s: string) =>
   s.replace(/^\s*\d+(\.\d+)?\s*[—.)\-:]?\s*/i, "").trim() || s;
@@ -110,6 +111,17 @@ export default async function ProjectPage({
               className="mt-3 h-3 text-white"
             />
           </div>
+        </div>
+
+        {/* Project brief / details editor */}
+        <div className="mt-4 flex justify-end">
+          <ProjectEditor
+            projectId={projectId}
+            title={project.title}
+            summary={project.summary}
+            brief={project.brief}
+            canWrite={writable}
+          />
         </div>
 
         {/* Project Foreman entry */}

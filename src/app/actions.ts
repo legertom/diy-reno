@@ -49,6 +49,30 @@ export async function createProject(formData: FormData) {
   redirect(`/p/${created.id}`);
 }
 
+export async function updateProject(input: {
+  projectId: string;
+  title: string;
+  summary: string;
+  brief: string;
+}) {
+  const title = input.title.trim();
+  if (!title) throw new Error("Project name is required");
+  await assertCanWrite(input.projectId);
+  const db = getDb();
+  await db
+    .update(projects)
+    .set({
+      title,
+      summary: input.summary.trim() || null,
+      brief: input.brief.trim() || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(projects.id, input.projectId));
+  revalidatePath(`/p/${input.projectId}`);
+  revalidatePath(`/p/${input.projectId}/foreman`);
+  revalidatePath("/");
+}
+
 /* ----------------------------------- tasks ----------------------------- */
 
 export async function setTaskStatus(

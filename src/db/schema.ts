@@ -104,8 +104,11 @@ export const projects = pgTable("project", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  /** Short tagline shown on cards. */
   summary: text("summary"),
-  /** ISO date the schedule "today" anchors to, optional. */
+  /** Long-form ground truth the Foreman reads in every conversation
+   *  (e.g. "walls are plaster not drywall, 1920s house, no garage"). */
+  brief: text("brief"),
   createdAt: now(),
   updatedAt: now(),
 });

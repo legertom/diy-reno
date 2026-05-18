@@ -12,6 +12,7 @@ import { auth } from "@/auth";
 import { getDb } from "@/db";
 import {
   chatMessages,
+  projects,
   tasks,
   taskGuides,
   phases,
@@ -37,7 +38,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change things with your tools — and ONLY these: CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
 - SAFETY ON REWRITE: never silently drop a hazard that still applies under the new method. Re-derive safety for the NEW method from scratch. Example: switching from heat-gun stripping to SANDING old paint does NOT remove lead risk — sanding pre-1978 paint creates lead dust and still requires a lead test, containment, HEPA, and a P100. Keep the lead/asbestos warnings that still apply; only remove ones genuinely irrelevant to the new method.
@@ -74,7 +75,8 @@ export async function POST(req: Request) {
   if (!role) return new Response("Forbidden", { status: 403 });
 
   const db = getDb();
-  const [taskRows, ownedTools, allTasks, projectPhases] = await Promise.all([
+  const [taskRows, ownedTools, allTasks, projectPhases, projectRows] =
+    await Promise.all([
     taskId
       ? db
           .select()
@@ -105,8 +107,17 @@ export async function POST(req: Request) {
       .from(phases)
       .where(eq(phases.projectId, projectId))
       .orderBy(asc(phases.position)),
+    db
+      .select({
+        title: projects.title,
+        summary: projects.summary,
+        brief: projects.brief,
+      })
+      .from(projects)
+      .where(eq(projects.id, projectId)),
   ]);
 
+  const project = projectRows[0];
   const row = taskRows[0];
   if (taskId && !row)
     return new Response("Task not found", { status: 404 });
@@ -145,6 +156,16 @@ export async function POST(req: Request) {
   const phaseList = projectPhases.length
     ? projectPhases.map((p) => p.name).join("\n")
     : "(no phases yet)";
+
+  const projectInfo = [
+    `PROJECT: ${project?.title ?? "Renovation"}`,
+    project?.summary ? project.summary : "",
+    project?.brief
+      ? `BRIEF (ground truth — always honor this):\n${project.brief}`
+      : "(no project brief set — if the user states a key fact about the home/scope, suggest saving it with setProjectBrief)",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const writable = canWrite(role);
   const userId = session.user.id;
@@ -192,6 +213,30 @@ export async function POST(req: Request) {
       .trim();
 
   const tools = {
+    setProjectBrief: tool({
+      description:
+        "Replace the PROJECT BRIEF — the ground-truth context you read in every conversation (e.g. 'walls are plaster not drywall', house age, scope, constraints). When the user states a durable fact about the home or project, fold it into the existing brief and save the FULL updated brief here. Works project-wide; no task needed.",
+      inputSchema: z.object({
+        brief: z
+          .string()
+          .min(1)
+          .describe("The complete updated project brief text"),
+      }),
+      execute: async ({ brief }) => {
+        if (!writable) return denied;
+        return commit(
+          "setProjectBrief",
+          async () => {
+            await db
+              .update(projects)
+              .set({ brief: brief.trim(), updatedAt: new Date() })
+              .where(eq(projects.id, projectId));
+            touch();
+          },
+          { brief: brief.trim() },
+        );
+      },
+    }),
     addTask: tool({
       description:
         "Create a NEW task in this project. Optionally place it in a phase (use an exact name from PROJECT PHASES, or a new name to create that phase) and give it steps/tools/materials/safety/tips. It's added to the end of the list — use moveTask afterward if the user wants it in a specific spot.",
@@ -573,7 +618,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
+    system: `${SYSTEM}\n\n--- ABOUT THIS PROJECT ---\n${projectInfo}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
       taskId
         ? `--- CURRENT TASK CONTEXT ---\n${context}`
         : `--- MODE: PROJECT FOREMAN ---\nNo specific task is open. You're helping plan the whole project: answer questions, advise sequencing, and CREATE or REORDER tasks (addTask / moveTask) when asked. For status changes, notes, time logs, or rewriting one task's plan, tell the user to open that specific task — those tools need a task open.`
