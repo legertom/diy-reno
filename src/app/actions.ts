@@ -16,6 +16,8 @@ import {
   timeLogs,
   photos,
   userTools,
+  chatMessages,
+  chatThreads,
 } from "@/db/schema";
 import {
   assertCanWrite,
@@ -506,4 +508,40 @@ export async function removeMember(memberId: string) {
     throw new Error("Only the project owner can manage collaborators");
   await db.delete(projectMembers).where(eq(projectMembers.id, memberId));
   revalidatePath(`/p/${m.projectId}/settings`);
+}
+
+/* ------------------------------- foreman ------------------------------- */
+
+/** "Start fresh": clear this thread's transcript + rolling summary.
+ *  Durable Foreman memory (foreman_memory) is intentionally preserved — the
+ *  character is never amnesiac after a reset. Shared thread → write-gated. */
+export async function resetForemanThread(
+  projectId: string,
+  taskId: string | null,
+) {
+  await assertCanWrite(projectId);
+  const db = getDb();
+  await db
+    .delete(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.projectId, projectId),
+        taskId
+          ? eq(chatMessages.taskId, taskId)
+          : isNull(chatMessages.taskId),
+      ),
+    );
+  await db
+    .delete(chatThreads)
+    .where(
+      and(
+        eq(chatThreads.projectId, projectId),
+        taskId
+          ? eq(chatThreads.taskId, taskId)
+          : isNull(chatThreads.taskId),
+      ),
+    );
+  if (taskId) revalidatePath(`/p/${projectId}/t/${taskId}`);
+  revalidatePath(`/p/${projectId}`);
+  revalidatePath(`/p/${projectId}/foreman`);
 }

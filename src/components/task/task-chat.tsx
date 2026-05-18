@@ -21,8 +21,10 @@ import {
   Loader2,
   Hammer,
   Check,
+  RotateCcw,
 } from "lucide-react";
 import { ATTACH_EVENT } from "@/components/task/photo-uploader";
+import { resetForemanThread } from "@/app/actions";
 
 export const ASK_EVENT = "reno:ask-foreman";
 
@@ -54,6 +56,8 @@ const TOOL_LABELS: Record<string, string> = {
   "tool-addBuyItem": "Added to buy list",
   "tool-logTime": "Logged time",
   "tool-recordOwnedTool": "Saved to your toolbox",
+  "tool-remember": "Saved to memory",
+  "tool-forget": "Updated memory",
 };
 
 export function TaskChat({
@@ -66,7 +70,7 @@ export function TaskChat({
   initialMessages: UIMessage[];
 }) {
   const router = useRouter();
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, status, stop, setMessages } = useChat({
     messages: initialMessages,
     transport: new DefaultChatTransport({
       api: "/api/chat",
@@ -80,6 +84,7 @@ export function TaskChat({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
@@ -159,18 +164,54 @@ export function TaskChat({
     setAttachments([]);
   }
 
+  async function startFresh() {
+    if (resetting || busy) return;
+    if (
+      !confirm(
+        "Start fresh? This clears this conversation. The Foreman keeps what it has remembered.",
+      )
+    )
+      return;
+    setResetting(true);
+    try {
+      await resetForemanThread(projectId, taskId ?? null);
+      setMessages([]);
+      router.refresh();
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
     <section id="foreman">
-      <div className="flex items-center gap-2">
-        <span className="grid size-7 place-items-center rounded-md bg-blueprint text-white">
-          <Hammer className="size-3.5" />
-        </span>
-        <div>
-          <p className="text-sm font-semibold text-ink">The Foreman</p>
-          <p className="font-mono text-[10px] tracking-wide text-ink-faint uppercase">
-            Renovation expert · sees your photos
-          </p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="grid size-7 place-items-center rounded-md bg-blueprint text-white">
+            <Hammer className="size-3.5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-ink">The Foreman</p>
+            <p className="font-mono text-[10px] tracking-wide text-ink-faint uppercase">
+              Renovation expert · sees your photos
+            </p>
+          </div>
         </div>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={startFresh}
+            disabled={resetting || busy}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line-strong px-2.5 py-2 font-mono text-[10px] tracking-wide text-ink-soft uppercase transition-colors hover:border-brass hover:text-brass disabled:opacity-50"
+            aria-label="Start a fresh conversation (keeps what the Foreman remembers)"
+          >
+            {resetting ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="size-3.5" />
+            )}
+            Start fresh
+          </button>
+        )}
       </div>
 
       <div className="mt-4 space-y-4">

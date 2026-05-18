@@ -1,5 +1,6 @@
 import {
   convertToModelMessages,
+  generateText,
   streamText,
   tool,
   stepCountIs,
@@ -12,6 +13,8 @@ import { auth } from "@/auth";
 import { getDb } from "@/db";
 import {
   chatMessages,
+  chatThreads,
+  foremanMemories,
   projects,
   tasks,
   taskGuides,
@@ -26,6 +29,19 @@ import { getAccess, canWrite, getUserTools } from "@/lib/projects";
 export const maxDuration = 60;
 
 const MODEL = process.env.AI_MODEL || "anthropic/claude-sonnet-4.6";
+
+// Transcript compaction: keep the last KEEP_LAST turns verbatim; once the
+// thread grows past KEEP_LAST + COMPACT_BATCH, fold the batch rolling out of
+// that window into a cheap rolling summary instead of replaying everything.
+const KEEP_LAST = 12;
+const COMPACT_BATCH = 8;
+
+const textOf = (m: UIMessage): string =>
+  (m.parts as Array<{ type: string; text?: string }>)
+    .filter((p) => p.type === "text")
+    .map((p) => p.text ?? "")
+    .join(" ")
+    .trim();
 
 const SYSTEM = `You are "The Foreman" — a seasoned general contractor with 25+ years of hands-on residential renovation experience who loves coaching ambitious DIYers.
 
@@ -75,8 +91,15 @@ export async function POST(req: Request) {
   if (!role) return new Response("Forbidden", { status: 403 });
 
   const db = getDb();
-  const [taskRows, ownedTools, allTasks, projectPhases, projectRows] =
-    await Promise.all([
+  const [
+    taskRows,
+    ownedTools,
+    allTasks,
+    projectPhases,
+    projectRows,
+    memoryRows,
+    threadRows,
+  ] = await Promise.all([
     taskId
       ? db
           .select()
@@ -112,9 +135,26 @@ export async function POST(req: Request) {
         title: projects.title,
         summary: projects.summary,
         brief: projects.brief,
+        propertyId: projects.propertyId,
       })
       .from(projects)
       .where(eq(projects.id, projectId)),
+    db
+      .select()
+      .from(foremanMemories)
+      .where(eq(foremanMemories.userId, session.user.id))
+      .orderBy(asc(foremanMemories.createdAt)),
+    db
+      .select({ summary: chatThreads.summary })
+      .from(chatThreads)
+      .where(
+        and(
+          eq(chatThreads.projectId, projectId),
+          taskId
+            ? eq(chatThreads.taskId, taskId)
+            : isNull(chatThreads.taskId),
+        ),
+      ),
   ]);
 
   const project = projectRows[0];
@@ -169,6 +209,21 @@ export async function POST(req: Request) {
 
   const writable = canWrite(role);
   const userId = session.user.id;
+  const propertyId = project?.propertyId ?? null;
+
+  // Durable memory in scope for this conversation (user / property / project).
+  const memText = memoryRows
+    .filter(
+      (m) =>
+        (m.scope === "user" && m.scopeId === userId) ||
+        (m.scope === "project" && m.scopeId === projectId) ||
+        (propertyId !== null &&
+          m.scope === "property" &&
+          m.scopeId === propertyId),
+    )
+    .map((m) => `- ${m.body}`)
+    .join("\n");
+  const priorSummary = threadRows[0]?.summary?.trim() ?? "";
   const denied = {
     ok: false as const,
     message:
@@ -882,16 +937,98 @@ export async function POST(req: Request) {
         );
       },
     }),
+    remember: tool({
+      description:
+        "Save a durable fact worth recalling in FUTURE conversations — survives 'start fresh'. scope 'user' = about the person (skill, confidence, preferences), 'property' = about the place, 'project' = about this job (default). Use for lasting facts, not small talk.",
+      inputSchema: z.object({
+        fact: z.string().min(1).describe("The fact to remember, concise"),
+        scope: z.enum(["user", "property", "project"]).optional(),
+      }),
+      execute: async ({ fact, scope }) => {
+        const sc = scope ?? "project";
+        if ((sc === "project" || sc === "property") && !writable)
+          return denied;
+        if (sc === "property" && !propertyId)
+          return {
+            ok: false as const,
+            message: "No property is linked to this project yet.",
+          };
+        const scopeId =
+          sc === "user" ? userId : sc === "property" ? propertyId! : projectId;
+        return commit(
+          "remember",
+          async () => {
+            await db.insert(foremanMemories).values({
+              userId,
+              scope: sc,
+              scopeId,
+              body: fact.trim(),
+            });
+          },
+          { remembered: fact.trim(), scope: sc },
+        );
+      },
+    }),
+    forget: tool({
+      description:
+        "Forget previously-remembered facts that match the given text (within this conversation's user/property/project memory). Use only when the user asks you to forget something.",
+      inputSchema: z.object({
+        match: z
+          .string()
+          .min(1)
+          .describe("Text to match against saved memories"),
+      }),
+      execute: async ({ match }) => {
+        const q = match.trim().toLowerCase();
+        const scopeIds = [
+          userId,
+          projectId,
+          ...(propertyId ? [propertyId] : []),
+        ];
+        return commit(
+          "forget",
+          async () => {
+            const rows = await db
+              .select()
+              .from(foremanMemories)
+              .where(eq(foremanMemories.userId, userId));
+            const ids = rows
+              .filter(
+                (r) =>
+                  scopeIds.includes(r.scopeId) &&
+                  r.body.toLowerCase().includes(q),
+              )
+              .map((r) => r.id);
+            for (const id of ids)
+              await db
+                .delete(foremanMemories)
+                .where(eq(foremanMemories.id, id));
+          },
+          { forgot: match.trim() },
+        );
+      },
+    }),
   };
+
+  const memoryBlock = `\n\n--- WHAT YOU REMEMBER (durable; survives "start fresh") ---\n${
+    memText ||
+    "(nothing saved yet — use the remember tool for durable facts about the user, the place, or this project)"
+  }`;
+  const summaryBlock = priorSummary
+    ? `\n\n--- EARLIER IN THIS CONVERSATION (summary of older turns) ---\n${priorSummary}`
+    : "";
+  // Bound per-turn cost: the model sees the last KEEP_LAST turns verbatim;
+  // everything older is carried by the rolling summary above.
+  const recent = messages.slice(-KEEP_LAST);
 
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- ABOUT THIS PROJECT ---\n${projectInfo}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
+    system: `${SYSTEM}\n\n--- ABOUT THIS PROJECT ---\n${projectInfo}${memoryBlock}${summaryBlock}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
       taskId
         ? `--- CURRENT TASK CONTEXT ---\n${context}`
         : `--- MODE: PROJECT FOREMAN ---\nNo specific task is open. You're helping plan the whole project: answer questions, advise sequencing, and CREATE or REORDER tasks (addTask / moveTask) when asked. For status changes, notes, time logs, or rewriting one task's plan, tell the user to open that specific task — those tools need a task open.`
     }`,
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(recent),
     tools,
     stopWhen: stepCountIs(5),
   });
@@ -900,22 +1037,58 @@ export async function POST(req: Request) {
     originalMessages: messages,
     onFinish: async ({ messages: finalMessages }) => {
       try {
-        await db
-          .delete(chatMessages)
-          .where(
-            and(
-              eq(chatMessages.projectId, projectId),
+        const threadWhere = and(
+          eq(chatMessages.projectId, projectId),
+          taskId
+            ? eq(chatMessages.taskId, taskId)
+            : isNull(chatMessages.taskId),
+        );
+
+        // Compaction: once the thread is long, fold the batch of turns just
+        // rolling out of the verbatim window into the rolling summary (one
+        // cheap summarize call) instead of growing the stored transcript
+        // unbounded. The summary + memory carry older context.
+        let keep = finalMessages;
+        if (finalMessages.length > KEEP_LAST + COMPACT_BATCH) {
+          keep = finalMessages.slice(-KEEP_LAST);
+          const rollEnd = finalMessages.length - KEEP_LAST;
+          const rollStart = Math.max(0, rollEnd - COMPACT_BATCH);
+          const rolling = finalMessages
+            .slice(rollStart, rollEnd)
+            .map((m) => `${m.role.toUpperCase()}: ${textOf(m)}`)
+            .filter((l) => l.length > 6)
+            .join("\n");
+          if (rolling) {
+            const { text } = await generateText({
+              model: MODEL,
+              system:
+                "You maintain a tight running memory of a renovation-coaching chat. Keep durable facts, decisions, the user's situation/skill, and open threads; drop pleasantries. Merge the new turns into the existing summary without losing or duplicating earlier facts. 200 words max.",
+              prompt: `EXISTING SUMMARY:\n${priorSummary || "(none)"}\n\nNEW TURNS ROLLING OUT OF THE LIVE WINDOW:\n${rolling}\n\nReturn the updated running summary only.`,
+            });
+            const summary = text.trim();
+            const threadKey = and(
+              eq(chatThreads.projectId, projectId),
               taskId
-                ? eq(chatMessages.taskId, taskId)
-                : isNull(chatMessages.taskId),
-            ),
-          );
-        if (finalMessages.length) {
+                ? eq(chatThreads.taskId, taskId)
+                : isNull(chatThreads.taskId),
+            );
+            await db.delete(chatThreads).where(threadKey);
+            await db
+              .insert(chatThreads)
+              .values({ projectId, taskId, summary });
+          }
+        }
+
+        await db.delete(chatMessages).where(threadWhere);
+        if (keep.length) {
           await db.insert(chatMessages).values(
-            finalMessages.map((m) => ({
+            keep.map((m) => ({
               projectId,
               taskId,
-              role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+              role:
+                m.role === "assistant"
+                  ? ("assistant" as const)
+                  : ("user" as const),
               authorId: m.role === "user" ? session.user.id : null,
               parts: m.parts as unknown[],
             })),

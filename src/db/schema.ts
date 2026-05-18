@@ -352,6 +352,49 @@ export const chatMessages = pgTable(
   (c) => [index("chat_task_idx").on(c.taskId, c.createdAt)],
 );
 
+/** Durable Foreman memory — survives transcript resets. Scoped to a user
+ *  and one of: their account ("user"), a property, or a project. Written by
+ *  the Foreman's remember/forget tools and injected into the prompt. */
+export const foremanMemories = pgTable(
+  "foreman_memory",
+  {
+    id: uuid().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "user" | "property" | "project" — free-text, constrained in code. */
+    scope: text("scope").notNull(),
+    /** The id of the user / property / project this memory pertains to. */
+    scopeId: text("scope_id").notNull(),
+    body: text("body").notNull(),
+    createdAt: now(),
+  },
+  (m) => [
+    index("foreman_memory_user_idx").on(m.userId),
+    index("foreman_memory_scope_idx").on(m.scope, m.scopeId),
+  ],
+);
+
+/** Per-thread rolling summary for transcript compaction. One row per
+ *  (project, task) or (project, project-level) thread — same keying as
+ *  chat_message. Cleared by "start fresh"; memory above is not. */
+export const chatThreads = pgTable(
+  "chat_thread",
+  {
+    id: uuid().primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    taskId: text("task_id").references(() => tasks.id, {
+      onDelete: "cascade",
+    }),
+    /** Running summary of older turns rolled out of the verbatim window. */
+    summary: text("summary"),
+    updatedAt: now(),
+  },
+  (c) => [index("chat_thread_idx").on(c.projectId, c.taskId)],
+);
+
 /* ------------------------------------------------------------------ */
 /*  Relations                                                           */
 /* ------------------------------------------------------------------ */
@@ -419,3 +462,5 @@ export type ShoppingItem = typeof shoppingItems.$inferSelect;
 export type TimeLog = typeof timeLogs.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
+export type ForemanMemory = typeof foremanMemories.$inferSelect;
+export type ChatThread = typeof chatThreads.$inferSelect;

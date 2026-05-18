@@ -17,14 +17,14 @@
  * Any failure exits non-zero so the Vercel build fails and nothing ships.
  * Rollback = restore the snapshot branch logged in step 1.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { sql } from "drizzle-orm";
 
 const NEON_API = "https://console.neon.tech/api/v2";
-const MIGRATION_FILE = "drizzle/0001_add_property.sql";
+const MIGRATIONS_DIR = "drizzle";
 const KEEP_SNAPSHOTS = 3;
 
 function requireEnv(name: string): string {
@@ -46,10 +46,19 @@ function gitSha(): string {
   );
 }
 
-/** Split the reviewed migration into individual statements. */
-function migrationStatements(): string[] {
-  const raw = readFileSync(MIGRATION_FILE, "utf8");
-  return raw
+/** Ordered reviewed migrations to apply: every `drizzle/NNNN_*.sql` with
+ *  NNNN >= 0001 (0000_baseline is the diff base only and is never executed),
+ *  ascending. Each is hand-reviewed idempotent SQL, so applying the whole
+ *  set every deploy is safe (already-applied ones no-op). */
+function migrationFiles(): string[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((f) => /^\d{4}_.*\.sql$/.test(f) && !f.startsWith("0000_"))
+    .sort();
+}
+
+/** Split one reviewed migration into individual statements. */
+function fileStatements(file: string): string[] {
+  return readFileSync(`${MIGRATIONS_DIR}/${file}`, "utf8")
     .split("--> statement-breakpoint")
     .map((s) => s.trim())
     .filter((chunk) => {
@@ -60,6 +69,11 @@ function migrationStatements(): string[] {
         .trim();
       return sansComments.length > 0;
     });
+}
+
+/** All statements across all reviewed migrations, in apply order. */
+function migrationStatements(): string[] {
+  return migrationFiles().flatMap(fileStatements);
 }
 
 type NeonBranch = { id: string; name: string; created_at?: string };
@@ -248,6 +262,9 @@ async function main() {
   if (!prodUrl) throw new Error("DATABASE_URL(_UNPOOLED) is not set");
 
   const statements = migrationStatements();
+  console.log(
+    `[§5] Reviewed migrations to apply (idempotent): ${migrationFiles().join(", ")}`,
+  );
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const sha = gitSha();
 
