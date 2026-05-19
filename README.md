@@ -20,7 +20,7 @@ Mobile-first. Visual language: architect's-blueprint chrome over light
 |---|---|
 | Framework | Next.js 16 (App Router, RSC) · React 19 · TypeScript |
 | Styling | Tailwind v4 (CSS-first `@theme` in `globals.css`) |
-| Type | **Archivo** only (one superfamily; no serif/mono) via `next/font` |
+| Type | **Geist** only (one geometric family; via the `geist` package) |
 | Auth | Auth.js v5 (`next-auth@beta`) — Google only, DB sessions, `@auth/drizzle-adapter` |
 | DB | Neon Postgres (Vercel Marketplace) + Drizzle ORM (`drizzle-orm/neon-http`) |
 | Files | Vercel Blob (client uploads) |
@@ -177,13 +177,25 @@ picker; loads history from `/api/chat/history`). Mounted from
 ## 5. Design system
 
 Everything is tokens/utilities in `src/app/globals.css` `@theme` —
-restyle there, not per-component. Palette = "Prussian Blueprint": cool
-paper, prussian chrome, one cyan accent. **The `brass*` tokens are
-repointed to the cyan accent** (legacy name; "brass" in code renders
-cyan). Utilities: `.blueprint-surface`, `.sheet-frame`, `.tick-corners`,
-`.dim-rule`, `.eyebrow`, `.sheet-no`, `.font-display`. Shared primitives
-in `src/components/ui.tsx` (`Card` w/ `frame`, `SectionHeader`, `Badge`,
-`Button`, `ProgressBar`, `Eyebrow`).
+restyle there, not per-component. Direction = **"evolve the blueprint"**
+(Phase 3): high-end editorial — warm paper, near-black ink, hairline
+rules, generous space, one geometric family (**Geist**, via the `geist`
+package) across a dramatic scale. **Token names are unchanged on purpose**
+so every component re-skins at once and the `cn()` color list in
+`src/lib/utils.ts` stays in lockstep (README §7.1) — only the values
+moved. `brass*` is a legacy name now pointing at the restrained deep-navy
+accent; **deep navy is rare punctuation, never the default surface.**
+The one surviving architectural signature is `.dim-rule` (hairline +
+end-ticks) plus the rigorous numeral system; the skeuomorphic chrome
+(drafting grid, `.sheet-frame`, `.tick-corners`/`.ticked`, `.hatch`, the
+`◳` wordmark, "Sheet A-2"/"Dossier" codes) was removed. Live utilities:
+`.dim-rule`, `.eyebrow`(+`.eyebrow-brass`), `.sheet-no`, `.font-display`,
+`.blueprint-surface` (calm deep-navy block — rare; sign-in cover).
+Shared primitives in `src/components/ui.tsx` (`Card` — `frame`/`ticked`
+kept as no-op-ish props for call-site compatibility — `SectionHeader`,
+`Badge`, `Button`, `ProgressBar`, `Eyebrow`, `EmptyState`). The Foreman
+is a **persistent bottom-anchored surface** (thumb zone), not a corner
+icon — `foreman-bubble.tsx`.
 
 ## 6. Deploy
 

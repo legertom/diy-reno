@@ -1,17 +1,20 @@
 # DIY Reno — Implementation Plan
 
-> Status: **Phases 1 & 2 shipped to production (2026-05-18).** §5 signed off
-> 2026-05-18 (as written). Phase 1 (deploy `1c18917`) and Phase 2 (deploy
-> `d20f76a`) both ran the full §5 pipeline against prod: snapshot taken +
+> Status: **Phases 1–3 shipped to production.** §5 signed off 2026-05-18
+> (as written). Phase 1 (`1c18917`), Phase 2 (`d20f76a`), Phase 3
+> (`93b2ec7`) each ran the full §5 pipeline against prod: snapshot taken +
 > recorded, idempotency gate PASSED on a real Neon branch copy, reviewed
-> migrations (`0001`+`0002`) applied, live "Kitchen Renovation"
-> intact/owned/nested, post-migration verification passed, app live —
-> verified from build logs, not intent. Phase 2 behavioral features
-> (memory recall, compaction, start-fresh) are deployed + type/build-clean
-> but not yet browser-tested in an authed session. **Next: Phase 3 (visual
-> language — "evolve the blueprint").** Date: 2026-05-17. Branch:
-> `claude/cool-morse-fc6a66`. Read `AGENTS.md` and `README.md` first; this
-> plan assumes both.
+> migrations (`0001`+`0002`) applied idempotently, live "Kitchen
+> Renovation" intact/owned/nested, verification passed, app live —
+> verified from build logs, not intent. §7 #4 resolved: **Geist**
+> (owner-confirmed). **Verification gaps (honest):** Phase 2 behavioral
+> features and Phase 3's mandatory phone-viewport visual check are
+> code-complete, build-clean and deployed but require the authenticated
+> owner to confirm in a real browser session (I cannot drive Tom's Google
+> login; only the public `/signin` was confirmed rendering in prod).
+> **Next: Phase 4 (conversational intake / onboarding).** Date:
+> 2026-05-17. Branch: `claude/cool-morse-fc6a66`. Read `AGENTS.md` and
+> `README.md` first; this plan assumes both.
 
 ---
 
@@ -270,19 +273,31 @@ authenticated browser session — interactive confirmation recommended.**
 
 ### Phase 3 — Visual language ("evolve the blueprint")
 
-Deliverables:
-- [ ] Swap font (Geist/Sora) in `layout.tsx`; remove mono/display aliasing.
-- [ ] `globals.css` `@theme`: new scale + palette; remove cosplay utilities;
-      keep `.dim-rule` + numerals. Update `cn()` color list in lockstep.
-- [ ] Rework `src/components/ui.tsx` primitives + `app-header.tsx` (kill
-      `◳`/sheet codes), `task-row.tsx`, `page.tsx`, `p/[projectId]/page.tsx`
-      to photo-led, mobile-first, asymmetric.
-- [ ] Foreman promoted to a persistent bottom-anchored surface on mobile
-      (`foreman-bubble.tsx` / `foreman-launcher.tsx`).
+Deliverables (code complete; `tsc`/`eslint`/`next build` green; deployed
+`93b2ec7`; §5 pipeline stayed green; prod `/signin` renders the new system):
+- [x] Geist via the `geist` package (Vercel-native, free — owner-confirmed,
+      §7 #4) in `layout.tsx`; the fake display/mono aliases now resolve to
+      the one face.
+- [x] `globals.css` `@theme`: editorial scale + warm-paper/near-black/
+      hairline palette, deep navy as rare punctuation; removed the drafting
+      grid, `.sheet-frame`, `.tick-corners`/`.ticked`, `.hatch`, `◳`, sheet
+      codes; kept `.dim-rule` + the numeral system. Token **names** are
+      unchanged so `cn()` stays in lockstep by construction (verified).
+- [x] Reworked `ui.tsx`, `app-header.tsx` (no `◳`/sheet codes), `page.tsx`,
+      `p/[projectId]/page.tsx`, plus the task/foreman/settings/profile pages
+      and sign-in for coherence: photo-led, asymmetric, generous space,
+      edge-to-edge & mobile-first (no `max-w-3xl` letterbox). `task-row.tsx`
+      re-skins via the repointed tokens (no cosplay utilities in it).
+- [x] Foreman promoted to a persistent, prominent **bottom-anchored**
+      surface (thumb-zone, safe-area aware) — `foreman-bubble.tsx`.
 
-Dependencies: ideally after Phase 1 (Property/photo data exists to art-direct
-around). Exit: passes a real mobile-device check; no longer reads as a blog;
-coach is front-and-center.
+Dependencies: Phase 1 (met — dashboard now groups by Property). Exit: no
+longer reads as a blog; coach is front-and-center. **Honest gap: the
+mandatory "real mobile-device check" requires the authenticated owner — I
+cannot drive Tom's Google session, so the only screen I verified rendering
+in prod is the public `/signin`. The authed screens are code-complete,
+build-clean and deployed but their phone-viewport visual check is pending
+the owner (per the prompt's no-claim-without-browser-test rule).**
 
 ### Phase 4 — Conversational intake / onboarding (first scrivener)
 
@@ -403,7 +418,7 @@ production build logs of deploy `1c18917` (2026-05-18)**:
 | 1 | Migration-safety approach for live data (§5) | Adopt §5 as written | **Signed off 2026-05-18 (as written)** |
 | 2 | Collaborator sharing scope | Project-level (least-privilege) | Confirm |
 | 3 | Exact structured Property field set | Minimal: type, ownership, location; rest → brief/memory | Confirm during Phase 1 |
-| 4 | Final typeface | Geist (free, Vercel-native) | Confirm in Phase 3 |
+| 4 | Final typeface | Geist (free, Vercel-native) | **Confirmed: Geist (owner, 2026-05-19)** |
 | 5 | Minimal test harness now vs later | Add alongside Phase 1 (migration is risky) | Decide |
 | 6 | Blob orphan cleanup, AI rate-limiting, local-dev-without-secrets (raised in the original README review) | Address in Phase 5 / as policy | Track |
 
