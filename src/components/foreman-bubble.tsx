@@ -31,46 +31,69 @@ export function ForemanBubble({ projects }: { projects: Project[] }) {
 
   if (projects.length === 0) return null;
 
+  // Persistent, prominent, bottom-anchored surface — the coach is the
+  // product thesis, not a corner afterthought (PLAN §3.4). Full-width dock
+  // on mobile (thumb zone, safe-area aware); a clear bar on desktop too.
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Ask the Foreman"
-        className="fixed right-5 bottom-5 z-50 flex items-center gap-2 rounded-full bg-blueprint py-3 pr-5 pl-4 text-white shadow-[var(--shadow-lift)] transition-transform hover:scale-105"
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-card/95 backdrop-blur-sm"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <Hammer className="size-5" />
-        <span className="text-sm font-semibold">Foreman</span>
-      </button>
+        <div className="mx-auto max-w-5xl px-5 sm:px-8">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Ask the Foreman"
+            className="group flex w-full items-center gap-3 py-3"
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blueprint text-white">
+              <Hammer className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block text-sm font-semibold text-ink">
+                The Foreman
+              </span>
+              <span className="block truncate text-xs text-ink-faint">
+                Ask how to do this step, what to buy, or “does this look
+                right?”
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] font-semibold tracking-[0.16em] text-ink-faint uppercase transition-colors group-hover:text-ink">
+              Open
+            </span>
+          </button>
+        </div>
+      </div>
     );
   }
 
   const ready = loaded !== null && loaded.pid === pid;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center sm:inset-auto sm:right-5 sm:bottom-5">
-      <div className="flex h-[82vh] w-full flex-col overflow-hidden rounded-t-2xl border border-line bg-card shadow-[var(--shadow-lift)] sm:h-[34rem] sm:w-[27rem] sm:rounded-2xl">
-        <div className="blueprint-surface flex shrink-0 items-center justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-white/15 text-white">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center sm:inset-auto sm:right-6 sm:bottom-6">
+      <div className="flex h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl border border-line bg-card shadow-[var(--shadow-lift)] sm:h-[36rem] sm:w-[28rem] sm:rounded-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-blueprint text-white">
               <Hammer className="size-4" />
             </span>
             {projects.length > 1 ? (
               <select
                 value={pid}
                 onChange={(e) => setPid(e.target.value)}
-                className="max-w-[14rem] min-w-0 truncate rounded border border-white/25 bg-white/10 px-2 py-1 text-xs text-white outline-none"
+                className="max-w-[15rem] min-w-0 truncate rounded-md border border-line-strong bg-card px-2 py-1 text-xs text-ink outline-none"
               >
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id} className="text-ink">
+                  <option key={p.id} value={p.id}>
                     {p.title}
                   </option>
                 ))}
               </select>
             ) : (
-              <span className="truncate text-sm font-semibold text-white">
-                Foreman ·{" "}
-                <span className="font-normal text-[#bcd0e6]">
+              <span className="truncate text-sm font-semibold text-ink">
+                The Foreman ·{" "}
+                <span className="font-normal text-ink-faint">
                   {projects[0]?.title}
                 </span>
               </span>
@@ -80,7 +103,7 @@ export function ForemanBubble({ projects }: { projects: Project[] }) {
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="grid size-7 shrink-0 place-items-center rounded text-[#cfe0f2] hover:bg-white/10 hover:text-white"
+            className="grid size-8 shrink-0 place-items-center rounded-full text-ink-faint transition-colors hover:bg-paper-2 hover:text-ink"
           >
             <X className="size-4" />
           </button>

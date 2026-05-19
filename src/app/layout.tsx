@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
 import "./globals.css";
-
-// One architectural superfamily — display, body, and labels.
-const archivo = Archivo({
-  variable: "--font-archivo",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "DIY Reno — renovation planner & site foreman",
@@ -17,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#14386b",
+  themeColor: "#f6f4ef",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -27,7 +20,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${archivo.variable} h-full`}>
+    <html lang="en" className={`${GeistSans.variable} h-full`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

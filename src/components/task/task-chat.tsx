@@ -389,7 +389,7 @@ export function TaskChat({
           <button
             type="submit"
             disabled={!input.trim() && attachments.length === 0}
-            className="grid size-10 shrink-0 place-items-center rounded-lg bg-brass text-white transition-colors hover:bg-[#256a9c] disabled:opacity-50"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-blueprint text-white transition-colors hover:bg-blueprint-deep disabled:opacity-50"
             aria-label="Send"
           >
             <Send className="size-4" />

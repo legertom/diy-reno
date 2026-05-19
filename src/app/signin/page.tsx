@@ -7,27 +7,20 @@ export default async function SignInPage() {
   if (session?.user) redirect("/");
 
   return (
-    <main className="grid min-h-dvh place-items-center px-5 py-10">
-      <div className="w-full max-w-sm">
-        <div className="blueprint-surface sheet-frame tick-corners rounded-[var(--radius-card)] px-8 py-10 text-center shadow-[var(--shadow-lift)]">
-          <div className="mb-5 flex items-center justify-between">
-            <Eyebrow className="!text-[#7fa6cb]">Renovation Atelier</Eyebrow>
-            <span className="sheet-no text-[#7fa6cb]">A-0</span>
-          </div>
-          <div
-            aria-hidden
-            className="mx-auto grid size-10 place-items-center border border-white/30 font-mono text-sm text-[#cfe0f2]"
-          >
-            ◳
-          </div>
-          <h1 className="font-display mt-4 text-[2.6rem] leading-none text-white">
-            DIY<span className="text-brass-2">·</span>RENO
+    <main className="grid min-h-dvh place-items-center px-5 py-12">
+      <div className="w-full max-w-md">
+        <div className="blueprint-surface rounded-[var(--radius-card)] px-9 py-14 shadow-[var(--shadow-lift)]">
+          <Eyebrow className="!text-[#9fb0c8]">Renovation, coached</Eyebrow>
+          <h1 className="font-display mt-5 text-6xl leading-[0.95] text-white">
+            DIY
+            <br />
+            RENO
           </h1>
-          <p className="mx-auto mt-3 max-w-[17rem] text-sm text-[#aec6de]">
-            Draft the plan. Work the schedule. Ask the expert. Build it
-            right.
+          <p className="mt-6 max-w-[18rem] text-sm leading-relaxed text-[#c3ccdb]">
+            Plan the job. Work it one step at a time. Ask an expert
+            contractor anything, anytime.
           </p>
-          <div className="dim-rule mx-auto mt-6 w-2/3" />
+          <div className="dim-rule mt-9 w-24 opacity-60" />
         </div>
 
         <form
@@ -39,14 +32,14 @@ export default async function SignInPage() {
         >
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-3 rounded-lg border border-line-strong bg-card px-4 py-3 text-sm font-medium text-ink shadow-[var(--shadow-card)] transition-colors hover:border-brass hover:text-brass"
+            className="flex w-full items-center justify-center gap-3 rounded-full border border-line-strong bg-card px-5 py-3.5 text-sm font-medium text-ink shadow-[var(--shadow-card)] transition-colors hover:border-ink"
           >
             <GoogleMark />
             Continue with Google
           </button>
         </form>
 
-        <p className="mt-6 text-center font-mono text-[11px] tracking-wide text-ink-faint uppercase">
+        <p className="mt-7 text-center text-[11px] font-semibold tracking-[0.16em] text-ink-faint uppercase">
           Free · Your plans, your collaborators
         </p>
       </div>

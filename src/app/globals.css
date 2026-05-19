@@ -1,55 +1,60 @@
 @import "tailwindcss";
 
 /*
-  DIY RENO — design language
-  "Architect's blueprint chrome over high-end drawing sheets."
-  Cyanotype-blue chrome (headers/hero/nav) framed like a title block;
-  crisp white content sheets with brass hairlines + registration marks.
+  DIY RENO — design language: "evolve the blueprint"
+  High-end editorial: warm paper, near-black ink, hairline rules, generous
+  negative space, one geometric family (Geist) across a dramatic scale.
+  The architectural soul is distilled to ONE quiet signature — the
+  dimension line (.dim-rule) — plus a rigorous numeral system. Deep navy
+  is rare punctuation, never the default surface. No skeuomorphic chrome.
+  Token NAMES are unchanged so every component re-skins at once and the
+  cn() color list in src/lib/utils.ts stays in lockstep (README §7.1).
 */
 
 @theme {
-  /* Prussian Blueprint — cool drafting-table palette, no gold.
-     Token names are unchanged so every component re-skins at once;
-     the old "brass" family is repointed to the blueprint-cyan accent. */
-  --color-paper: #eef1f4;
-  --color-paper-2: #e2e8ef;
-  --color-card: #ffffff;
+  /* Editorial paper + ink */
+  --color-paper: #f6f4ef;
+  --color-paper-2: #edeae1;
+  --color-card: #fffefb;
 
-  --color-ink: #0d1b2a;
-  --color-ink-soft: #41566b;
-  --color-ink-faint: #74879b;
+  --color-ink: #16140f;
+  --color-ink-soft: #595449;
+  --color-ink-faint: #918b7e;
 
-  --color-line: #d4dde7;
-  --color-line-strong: #b6c6d6;
+  --color-line: #e5e1d6;
+  --color-line-strong: #cdc7b8;
 
-  --color-blueprint: #1b3a5b;
-  --color-blueprint-2: #2f7fb8;
-  --color-blueprint-deep: #0d2438;
-  --color-blueprint-tint: #e1ebf4;
+  /* Deep navy — rare punctuation (covers, the coach), not a background. */
+  --color-blueprint: #1a2230;
+  --color-blueprint-2: #38445a;
+  --color-blueprint-deep: #0f131c;
+  --color-blueprint-tint: #eceef2;
 
-  /* gold removed — repointed to the cyan accent */
-  --color-brass: #2f7fb8;
-  --color-brass-2: #5b9fcf;
-  --color-brass-tint: #e1ebf4;
+  /* The single restrained accent (legacy name "brass"): the same deep
+     navy, so text-brass / border-brass read as elegant dark punctuation. */
+  --color-brass: #1f2a3d;
+  --color-brass-2: #3a475e;
+  --color-brass-tint: #ecedf1;
 
-  --color-positive: #3f7a5e;
-  --color-positive-tint: #e2efe9;
-  --color-warn: #9c6233;
-  --color-warn-tint: #f0e6d8;
-  --color-danger: #a23b39;
+  --color-positive: #3c6b54;
+  --color-positive-tint: #e7efe9;
+  --color-warn: #8a6326;
+  --color-warn-tint: #efe8d7;
+  --color-danger: #9a3b34;
 
-  /* One architectural superfamily — Archivo — for display, body, and
-     technical labels (no serif, no mono). */
-  --font-archivo-stack: var(--font-archivo), "Helvetica Neue", Arial,
-    system-ui, sans-serif;
-  --font-display: var(--font-archivo-stack);
-  --font-sans: var(--font-archivo-stack);
-  --font-mono: var(--font-archivo-stack);
+  /* One geometric superfamily — Geist — for display, body, and labels.
+     The old display/mono aliases now all resolve to the one face. */
+  --font-geist-stack: var(--font-geist-sans), -apple-system,
+    BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-display: var(--font-geist-stack);
+  --font-sans: var(--font-geist-stack);
+  --font-mono: var(--font-geist-stack);
 
-  --radius-card: 12px;
+  --radius-card: 14px;
 
-  --shadow-card: 0 1px 2px rgba(10, 24, 34, 0.05), 0 10px 30px rgba(10, 24, 34, 0.06);
-  --shadow-lift: 0 18px 50px rgba(8, 33, 57, 0.28);
+  --shadow-card: 0 1px 2px rgba(20, 18, 12, 0.04),
+    0 12px 32px rgba(20, 18, 12, 0.05);
+  --shadow-lift: 0 24px 60px rgba(15, 19, 28, 0.22);
 }
 
 * {
@@ -64,56 +69,49 @@ body {
   background-color: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
-  line-height: 1.55;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* faint drafting grid on the paper */
-  background-image:
-    linear-gradient(rgba(27, 58, 91, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(27, 58, 91, 0.05) 1px, transparent 1px);
-  background-size: 26px 26px;
-  background-attachment: fixed;
 }
 
 /* ---- Typographic primitives ---- */
 
-/* Architectural display — heavy Archivo, set tight (studio-signage) */
+/* Editorial display — Geist, set tight at a dramatic scale. */
 .font-display {
   font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  line-height: 1.04;
-}
-
-/* Architectural annotation label — uppercase, tracked, mono */
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--color-blueprint-2);
+  letter-spacing: -0.022em;
+  line-height: 1.03;
 }
 
+/* Editorial kicker — uppercase, tracked, quiet. */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
 .eyebrow-brass {
   color: var(--color-brass);
 }
 
-/* Drawing-sheet number / code, e.g. "A-1" */
+/* Rigorous numeral / meta label (e.g. section numbers, counts). */
 .sheet-no {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Brass hairline divider with end ticks — a dimension line */
+/* THE surviving signature: a dimension line — hairline with end ticks. */
 .dim-rule {
   position: relative;
   height: 1px;
-  background: var(--color-brass);
-  opacity: 0.55;
+  background: var(--color-line-strong);
 }
 .dim-rule::before,
 .dim-rule::after {
@@ -122,7 +120,7 @@ body {
   top: -3px;
   width: 1px;
   height: 7px;
-  background: var(--color-brass);
+  background: var(--color-line-strong);
 }
 .dim-rule::before {
   left: 0;
@@ -134,118 +132,21 @@ body {
 /* legacy plain rule, kept for compatibility */
 .rule {
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--color-line-strong) 10%,
-    var(--color-line-strong) 90%,
-    transparent
-  );
+  background: var(--color-line);
 }
 
-/* Blueprint chrome — headers / hero / nav */
+/* Deep-navy block — RARE punctuation only (sign-in cover, the coach).
+   Calm and solid; no drafting grid, no cyanotype. */
 .blueprint-surface {
   position: relative;
   background-color: var(--color-blueprint);
-  background-image:
-    radial-gradient(
-      120% 120% at 80% 0%,
-      rgba(47, 127, 184, 0.42) 0%,
-      transparent 55%
-    ),
-    linear-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.075) 1px, transparent 1px),
-    linear-gradient(160deg, var(--color-blueprint), var(--color-blueprint-deep));
-  background-size:
-    100% 100%,
-    22px 22px,
-    22px 22px,
-    100% 100%;
-  color: #dbe6f2;
-  overflow: hidden;
-}
-
-/* Inset double-hairline frame, like a drawing sheet's border */
-.sheet-frame {
-  position: relative;
-}
-.sheet-frame::after {
-  content: "";
-  position: absolute;
-  inset: 9px;
-  border: 1px solid currentColor;
-  opacity: 0.16;
-  pointer-events: none;
-  border-radius: 3px;
-}
-
-/* Registration / corner tick marks */
-.tick-corners {
-  position: relative;
-}
-.tick-corners::before,
-.tick-corners::after {
-  content: "";
-  position: absolute;
-  width: 13px;
-  height: 13px;
-  border-color: var(--color-brass-2);
-  border-style: solid;
-  border-width: 0;
-  opacity: 0.7;
-  pointer-events: none;
-}
-.tick-corners::before {
-  top: 10px;
-  left: 10px;
-  border-top-width: 1.5px;
-  border-left-width: 1.5px;
-}
-.tick-corners::after {
-  bottom: 10px;
-  right: 10px;
-  border-bottom-width: 1.5px;
-  border-right-width: 1.5px;
-}
-
-/* keep old class name working — alias to the refined ticks */
-.ticked {
-  position: relative;
-}
-.ticked::before,
-.ticked::after {
-  content: "";
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-color: var(--color-brass-2);
-  border-style: solid;
-  border-width: 0;
-  opacity: 0.65;
-  pointer-events: none;
-}
-.ticked::before {
-  top: 9px;
-  left: 9px;
-  border-top-width: 1.5px;
-  border-left-width: 1.5px;
-}
-.ticked::after {
-  bottom: 9px;
-  right: 9px;
-  border-bottom-width: 1.5px;
-  border-right-width: 1.5px;
-}
-
-/* 45° drafting hatch — sparing accent */
-.hatch {
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(47, 127, 184, 0.16) 0,
-    rgba(47, 127, 184, 0.16) 1px,
-    transparent 1px,
-    transparent 6px
+  background-image: radial-gradient(
+    120% 90% at 85% 0%,
+    rgba(120, 140, 180, 0.16) 0%,
+    transparent 60%
   );
+  color: #e9ecf2;
+  overflow: hidden;
 }
 
 input,
@@ -255,9 +156,8 @@ select {
   font: inherit;
 }
 
-/* Force dark, readable text in every form field app-wide. They used to
-   inherit color, which on pages under the blueprint header resolved to
-   the header's pale text and made inputs unreadable. */
+/* Force dark, readable text in every form field app-wide (they used to
+   inherit a pale color on dark surfaces). */
 input,
 textarea,
 select {
@@ -275,7 +175,7 @@ textarea::placeholder {
 }
 
 ::selection {
-  background: var(--color-blueprint-2);
+  background: var(--color-blueprint);
   color: #fff;
 }
 

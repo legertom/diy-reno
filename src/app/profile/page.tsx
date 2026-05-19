@@ -9,36 +9,24 @@ export default async function ProfilePage() {
 
   return (
     <>
-      <AppHeader
-        user={user}
-        crumb={{ href: "/", label: "Projects" }}
-        sheet="T-1"
-      />
-      <main className="mx-auto max-w-3xl px-5 pt-6 pb-28">
-        <div className="blueprint-surface sheet-frame tick-corners rounded-[var(--radius-card)] px-7 py-7 shadow-[var(--shadow-card)]">
-          <div className="flex items-center justify-between">
-            <Eyebrow className="!text-[#7fa6cb]">Your toolbox</Eyebrow>
-            <span className="sheet-no text-[#7fa6cb]">SCHEDULE T-1</span>
-          </div>
-          <h1 className="font-display mt-3 text-3xl leading-[1.05] text-white sm:text-[2.4rem]">
+      <AppHeader user={user} crumb={{ href: "/", label: "Projects" }} />
+      <main className="mx-auto max-w-5xl px-5 pt-12 pb-32 sm:px-8 sm:pt-16">
+        <header className="max-w-xl">
+          <Eyebrow>Your toolbox</Eyebrow>
+          <h1 className="font-display mt-4 text-[clamp(2rem,6vw,3.5rem)] text-ink">
             Tools you own
           </h1>
-          <p className="mt-2 max-w-md text-sm text-[#aec6de]">
+          <p className="mt-3 max-w-md text-base text-ink-soft">
             List the tools already in your kit. On every task, the Foreman
             cross-checks the tools the job needs against this list and tells
-            you what to <span className="text-white">buy</span> versus{" "}
-            <span className="text-white">rent</span>.
+            you what to <span className="text-ink">buy</span> versus{" "}
+            <span className="text-ink">rent</span>.
           </p>
-        </div>
+        </header>
 
-        <section className="mt-8">
-          <SectionHeader
-            index="01"
-            label="Inventory"
-            sheet={`${tools.length} ITEMS`}
-            className="mb-3"
-          />
-          <Card frame className="p-5 sm:p-6">
+        <section className="mt-12">
+          <SectionHeader index="01" label="Inventory" className="mb-4" />
+          <Card frame className="mt-6 p-5 sm:p-6">
             <ToolsManager
               tools={tools.map((t) => ({ id: t.id, name: t.name }))}
             />

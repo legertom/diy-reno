@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { ArrowUpRight, Plus } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { requireUser, listProjectsForUser } from "@/lib/projects";
 import { AppHeader } from "@/components/app-header";
-import { Card, Eyebrow, Badge, SectionHeader } from "@/components/ui";
+import {
+  Eyebrow,
+  Badge,
+  SectionHeader,
+  EmptyState,
+} from "@/components/ui";
 import { NewProjectForm } from "@/components/new-project-form";
 
 export default async function DashboardPage() {
@@ -10,82 +15,92 @@ export default async function DashboardPage() {
   const { owned, shared } = await listProjectsForUser(user.id, user.email);
   const all = [...owned, ...shared];
 
+  // Group by Property (the organizing parent introduced in Phase 1).
+  const groups: { name: string; items: typeof all }[] = [];
+  for (const p of all) {
+    const name = p.property?.name ?? "My place";
+    let g = groups.find((x) => x.name === name);
+    if (!g) {
+      g = { name, items: [] };
+      groups.push(g);
+    }
+    g.items.push(p);
+  }
+
   return (
     <>
       <AppHeader user={user} />
-      <main className="mx-auto max-w-3xl px-5 pt-8 pb-24">
-        <div className="blueprint-surface sheet-frame tick-corners rounded-[var(--radius-card)] px-7 py-8 shadow-[var(--shadow-card)]">
-          <div className="flex items-center justify-between">
-            <Eyebrow className="!text-[#7fa6cb]">Project Dossier</Eyebrow>
-            <span className="sheet-no text-[#7fa6cb]">DIY·RENO / A-1</span>
-          </div>
-          <h1 className="font-display mt-3 text-3xl leading-[1.05] text-white sm:text-[2.7rem]">
+      <main className="mx-auto max-w-5xl px-5 pt-12 pb-32 sm:px-8 sm:pt-20">
+        <header className="max-w-2xl">
+          <Eyebrow>DIY Reno</Eyebrow>
+          <h1 className="font-display mt-4 text-[clamp(2.75rem,9vw,5.25rem)] text-ink">
             Your renovations
           </h1>
-          <p className="mt-2 max-w-md text-sm text-[#aec6de]">
-            Every job, drafted like a set of plans — phased, scheduled, and
-            built with an expert in the room.
+          <p className="mt-4 max-w-md text-base text-ink-soft">
+            One place, one job at a time — planned with an expert contractor
+            in the room.
           </p>
-        </div>
+        </header>
 
-        <section className="mt-8">
-          <SectionHeader
-            index="01"
-            label="In progress"
-            sheet={`${all.length} TOTAL`}
-          />
+        <section className="mt-16 sm:mt-24">
+          <SectionHeader index="01" label="Projects" />
 
-          <div className="mt-4 grid gap-3">
-            {all.length === 0 && (
-              <Card frame className="px-7 py-10 text-center">
-                <p className="font-display text-xl">No projects yet</p>
-                <p className="mt-1.5 text-sm text-ink-faint">
-                  Start your first plan below — name the room or the job.
-                </p>
-              </Card>
-            )}
-
-            {all.map((p) => (
-              <Link key={p.id} href={`/p/${p.id}`} className="group block">
-                <Card className="px-5 py-4 transition-colors group-hover:border-brass">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-display truncate text-xl text-ink">
-                          {p.title}
-                        </h2>
-                        {p.role !== "owner" && (
-                          <Badge tone="blueprint">{p.role}</Badge>
-                        )}
-                      </div>
-                      {p.summary && (
-                        <p className="mt-1 line-clamp-2 text-sm text-ink-faint">
-                          {p.summary}
-                        </p>
-                      )}
-                    </div>
-                    <ArrowUpRight
-                      className="mt-1 size-5 shrink-0 text-line-strong transition-colors group-hover:text-brass"
-                      strokeWidth={1.75}
-                    />
+          {all.length === 0 ? (
+            <div className="mt-8">
+              <EmptyState
+                title="No projects yet"
+                hint="Start your first plan below — name the room or the job."
+              />
+            </div>
+          ) : (
+            <div className="mt-10 space-y-14">
+              {groups.map((g) => (
+                <div key={g.name}>
+                  <div className="flex items-baseline gap-4">
+                    <Eyebrow>{g.name}</Eyebrow>
+                    <span className="dim-rule min-w-8 flex-1 translate-y-[-0.3em]" />
                   </div>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                  <ul className="mt-2">
+                    {g.items.map((p) => (
+                      <li key={p.id}>
+                        <Link
+                          href={`/p/${p.id}`}
+                          className="group flex items-start justify-between gap-6 border-b border-line py-6 last:border-b-0"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <h2 className="font-display text-2xl text-ink transition-colors group-hover:text-ink-soft sm:text-3xl">
+                                {p.title}
+                              </h2>
+                              {p.role !== "owner" && (
+                                <Badge tone="blueprint">{p.role}</Badge>
+                              )}
+                            </div>
+                            {p.summary && (
+                              <p className="mt-2 max-w-xl text-sm text-ink-faint">
+                                {p.summary}
+                              </p>
+                            )}
+                          </div>
+                          <ArrowUpRight
+                            className="mt-1.5 size-6 shrink-0 text-line-strong transition-colors group-hover:text-ink"
+                            strokeWidth={1.5}
+                          />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
-        <section className="mt-10">
-          <SectionHeader index="02" label="New project" sheet="NEW" />
-          <Card frame className="mt-4 p-6">
-            <div className="mb-4 flex items-center gap-1.5 text-brass">
-              <Plus className="size-3.5" strokeWidth={2.5} />
-              <span className="font-mono text-[10px] tracking-[0.2em] uppercase">
-                Start a drawing set
-              </span>
-            </div>
+        <section className="mt-20 sm:mt-28">
+          <SectionHeader index="02" label="New project" />
+          <div className="mt-8 max-w-xl">
             <NewProjectForm />
-          </Card>
+          </div>
         </section>
       </main>
     </>
