@@ -7,11 +7,18 @@
 > migrations (`0001`+`0002`) applied idempotently, live "Kitchen
 > Renovation" intact/owned/nested, verification passed, app live —
 > verified from build logs, not intent. §7 #4 resolved: **Geist**
-> (owner-confirmed). **Verification gaps (honest):** Phase 2 behavioral
-> features and Phase 3's mandatory phone-viewport visual check are
-> code-complete, build-clean and deployed but require the authenticated
-> owner to confirm in a real browser session (I cannot drive Tom's Google
-> login; only the public `/signin` was confirmed rendering in prod).
+> (owner-confirmed). **Post-Phase-3 hotfix `b5e932d`** (owner-reported):
+> fixed a dark-on-dark button regression at the root (unlayered
+> `button{color:inherit}` → `@layer base`; README §7.11) and removed the
+> limitation where the project/global Foreman couldn't act on a task
+> unless it was "open" — every task tool now takes a `#`/title selector
+> and `editTaskDetails` can renumber (fixes duplicate `#30`). No schema
+> change; §5 pipeline stayed green. **Verification gaps (honest):** Phase
+> 2 behavioral features, Phase 3's mandatory phone-viewport visual check,
+> and the hotfix's in-chat behaviour are code-complete, build-clean and
+> deployed but require the authenticated owner to confirm in a real
+> browser/chat session (I cannot drive Tom's Google login; only the
+> public `/signin` was confirmed rendering in prod).
 > **Next: Phase 4 (conversational intake / onboarding).** Date:
 > 2026-05-17. Branch: `claude/cool-morse-fc6a66`. Read `AGENTS.md` and
 > `README.md` first; this plan assumes both.

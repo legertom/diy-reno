@@ -129,9 +129,11 @@ project page, and the global bubble). Client: `src/components/task/
 task-chat.tsx` (`useChat` + `DefaultChatTransport`, multimodal, reused
 everywhere; `taskId` may be `null`).
 
-- **Modes:** `taskId` present → task mode (task context + task-scoped
-  tools). `taskId` null → project Foreman (planning; task-scoped tools
-  politely defer).
+- **Modes:** `taskId` present → task mode (current-task context). `taskId`
+  null → project Foreman / global bubble. **Every task tool works in
+  either mode**: it takes an optional `task` arg resolved by `#num` or
+  title (`resolveTaskId`), falling back to the open task. Ambiguous `#`
+  (e.g. duplicate `#30`) is reported with candidates, never guessed.
 - **System prompt** is assembled per request: persona + `ABOUT THIS
   PROJECT` (title/summary/**brief**) + **WHAT YOU REMEMBER** (durable
   `foreman_memory` in scope) + **EARLIER IN THIS CONVERSATION** (the
@@ -146,8 +148,9 @@ everywhere; `taskId` may be `null`).
     `renamePhase`, `mergePhases`, `deletePhase`, `recordOwnedTool`,
     `remember` / `forget` (durable memory, scoped user/property/project;
     project/property scope is write-gated, user scope is the caller's own).
-  - Task-scoped: `setTaskStatus`, `updateTaskGuide`, `editTaskDetails`,
-    `addNote`, `addBuyItem`, `logTime`.
+  - Any-task (via the `task` selector): `setTaskStatus`,
+    `updateTaskGuide`, `editTaskDetails` (also renumbers via `num` —
+    fixes duplicate `#`), `addNote`, `addBuyItem`, `logTime`.
 - **Memory vs. transcript:** `foreman_memory` is durable and survives
   resets; the transcript is disposable. **"Start fresh"**
   (`resetForemanThread`, write-gated, button in `task-chat.tsx`) clears
@@ -255,6 +258,13 @@ vercel inspect <url> --logs            # build logs
 10. Minor known nit: a task page renders both the inline task chat and
     the global bubble (two `id="foreman"`). Harmless; fix by making the
     id unique if it ever matters.
+11. **`@layer` discipline in `globals.css`:** element resets that you
+    want Tailwind utilities to override (e.g. `button { color: inherit }`)
+    MUST be inside `@layer base`. An unlayered rule beats `@layer
+    utilities`, so an unlayered `button{color:inherit}` silently killed
+    `text-white` and made `bg-blueprint` buttons render dark-on-dark.
+    (The intentional `input/textarea/select` color force in §7.2 is the
+    deliberate exception — it stays unlayered so it always wins.)
 
 ## 8. Roadmap / not done
 
