@@ -1,8 +1,9 @@
 # DIY Reno — Implementation Plan
 
-> Status: **Phases 1–3 shipped to production.** §5 signed off 2026-05-18
+> Status: **Phases 1–4 shipped to production.** §5 signed off 2026-05-18
 > (as written). Phase 1 (`1c18917`), Phase 2 (`d20f76a`), Phase 3
-> (`93b2ec7`) each ran the full §5 pipeline against prod: snapshot taken +
+> (`93b2ec7`), Phase 4 (`d03bb4e`, conversational intake — no schema
+> change) each ran the full §5 pipeline against prod: snapshot taken +
 > recorded, idempotency gate PASSED on a real Neon branch copy, reviewed
 > migrations (`0001`+`0002`) applied idempotently, live "Kitchen
 > Renovation" intact/owned/nested, verification passed, app live —
@@ -18,8 +19,10 @@
 > and the hotfix's in-chat behaviour are code-complete, build-clean and
 > deployed but require the authenticated owner to confirm in a real
 > browser/chat session (I cannot drive Tom's Google login; only the
-> public `/signin` was confirmed rendering in prod).
-> **Next: Phase 4 (conversational intake / onboarding).** Date:
+> public `/signin` was confirmed rendering in prod). Phase 4's intake
+> conversation likewise needs an authenticated walkthrough (ideally a
+> fresh account) — verified to build/pipeline level only.
+> **Next: Phase 5 (photo timeline → AI renderings → floor-plan).** Date:
 > 2026-05-17. Branch: `claude/cool-morse-fc6a66`. Read `AGENTS.md` and
 > `README.md` first; this plan assumes both.
 
@@ -308,17 +311,27 @@ the owner (per the prompt's no-claim-without-browser-test rule).**
 
 ### Phase 4 — Conversational intake / onboarding (first scrivener)
 
-Deliverables:
-- [ ] `ask`/`choice` tool + chip rendering with always-available free-text.
-- [ ] "Still-needed" objective injected into the system prompt; opportunistic,
-      non-gating intake behavior.
-- [ ] Two-stage Property → Project intake; replaces the empty-dashboard
-      onboarding for new users.
+Deliverables (code complete; `tsc`/`eslint`/`next build` green; deployed
+`d03bb4e`; §5 pipeline stayed green; no schema change):
+- [x] `ask` tool + tappable quick-reply chips in `task-chat.tsx`; the
+      free-text box is always present so chips never gate. (Plus
+      `setPropertyDetails` to capture the place, inside `commit()`.)
+- [x] `INTAKE: STILL NEEDED` block injected into the system prompt —
+      opportunistic, two-stage, **non-gating**, anxiety-aware (no
+      interrogation, no dates); only present when the place/project is
+      under-specified so established projects aren't nagged.
+- [x] Two-stage Property → Project intake; the empty dashboard now offers
+      "Set up with the Foreman" (`startGuidedSetup`), manual form demoted
+      to an "or do it yourself" disclosure.
 
 Files/areas: `src/app/api/chat/route.ts`, `src/components/task/task-chat.tsx`,
-new-user entry in `src/app/page.tsx`.
-Dependencies: Phases 1 & 2. Exit: a brand-new user can create a Property +
-Project entirely by conversation; feels like talking, captures structure.
+`src/app/actions.ts`, `src/app/page.tsx`.
+Dependencies: Phases 1 & 2 (met). Exit: a brand-new user can create a
+Property + Project entirely by conversation; feels like talking, captures
+structure. **Honest gap: the actual brand-new-user conversation can only
+be walked by an authenticated user (a fresh Google account, ideally) — I
+can't drive Tom's session; verified to the build/pipeline level + public
+`/signin` only. Owner walkthrough recommended.**
 
 ### Phase 5 — Photo timeline → AI renderings → floor-plan ingestion
 

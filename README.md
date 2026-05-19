@@ -147,10 +147,23 @@ everywhere; `taskId` may be `null`).
     `moveTask`, `deleteTask`, `moveTaskToPhase`, `movePhase`,
     `renamePhase`, `mergePhases`, `deletePhase`, `recordOwnedTool`,
     `remember` / `forget` (durable memory, scoped user/property/project;
-    project/property scope is write-gated, user scope is the caller's own).
+    project/property scope is write-gated, user scope is the caller's own),
+    `setPropertyDetails` (name/type/ownership/location of the place,
+    write-gated, in `commit()`).
   - Any-task (via the `task` selector): `setTaskStatus`,
     `updateTaskGuide`, `editTaskDetails` (also renumbers via `num` —
     fixes duplicate `#`), `addNote`, `addBuyItem`, `logTime`.
+  - Presentational: `ask` (no DB write, so no `commit()`) — returns 2–6
+    options the client renders as tappable quick-reply chips; the
+    free-text box is always present so chips never gate.
+- **Conversational intake (Phase 4 — "first scrivener"):** when the
+  project's Property or this project is under-specified, the system
+  prompt gets an `INTAKE: STILL NEEDED` block — two stages (the place
+  once, then the project), opportunistic, **never gating**,
+  anxiety-aware (no interrogation, no dates). New users land here via
+  the dashboard's "Set up with the Foreman" (`startGuidedSetup` → starter
+  project → `/p/{id}/foreman`); the manual `NewProjectForm` is the
+  fallback. Heavy AI plan-generation stays deferred.
 - **Memory vs. transcript:** `foreman_memory` is durable and survives
   resets; the transcript is disposable. **"Start fresh"**
   (`resetForemanThread`, write-gated, button in `task-chat.tsx`) clears
