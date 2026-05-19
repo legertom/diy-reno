@@ -58,6 +58,7 @@ const TOOL_LABELS: Record<string, string> = {
   "tool-recordOwnedTool": "Saved to your toolbox",
   "tool-remember": "Saved to memory",
   "tool-forget": "Updated memory",
+  "tool-setPropertyDetails": "Saved the place",
 };
 
 export function TaskChat({
@@ -274,9 +275,35 @@ export function TaskChat({
                   const tp = part as {
                     type: string;
                     state?: string;
-                    output?: { ok?: boolean; message?: string };
+                    output?: {
+                      ok?: boolean;
+                      message?: string;
+                      options?: string[];
+                    };
                   };
                   if (tp.state !== "output-available") return null;
+                  // Quick-reply chips: accelerators only — the text box
+                  // below is always available, so chips never gate.
+                  if (
+                    tp.type === "tool-ask" &&
+                    tp.output?.options?.length
+                  ) {
+                    return (
+                      <div key={i} className="mt-2 flex flex-wrap gap-2">
+                        {tp.output.options.map((o) => (
+                          <button
+                            key={o}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => sendMessage({ text: o })}
+                            className="rounded-full border border-line-strong px-3.5 py-2 text-sm text-ink transition-colors hover:border-ink hover:bg-paper-2 disabled:opacity-50"
+                          >
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  }
                   const ok = tp.output?.ok !== false;
                   const label = TOOL_LABELS[tp.type] ?? "Updated task";
                   return (

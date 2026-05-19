@@ -1,13 +1,9 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Hammer } from "lucide-react";
 import { requireUser, listProjectsForUser } from "@/lib/projects";
+import { startGuidedSetup } from "@/app/actions";
 import { AppHeader } from "@/components/app-header";
-import {
-  Eyebrow,
-  Badge,
-  SectionHeader,
-  EmptyState,
-} from "@/components/ui";
+import { Eyebrow, Badge, Button, SectionHeader } from "@/components/ui";
 import { NewProjectForm } from "@/components/new-project-form";
 
 export default async function DashboardPage() {
@@ -46,11 +42,26 @@ export default async function DashboardPage() {
           <SectionHeader index="01" label="Projects" />
 
           {all.length === 0 ? (
-            <div className="mt-8">
-              <EmptyState
-                title="No projects yet"
-                hint="Start your first plan below — name the room or the job."
-              />
+            <div className="mt-8 max-w-xl">
+              <p className="text-base text-ink-soft">
+                Let&apos;s set up your place and your first project — just
+                talk it through with the Foreman. No forms, no rush; answer
+                what you know and skip the rest.
+              </p>
+              <form action={startGuidedSetup} className="mt-7">
+                <Button type="submit">
+                  <Hammer className="size-4" />
+                  Set up with the Foreman
+                </Button>
+              </form>
+              <details className="mt-10">
+                <summary className="cursor-pointer text-sm text-ink-faint transition-colors hover:text-ink">
+                  Or create a project yourself
+                </summary>
+                <div className="mt-6">
+                  <NewProjectForm />
+                </div>
+              </details>
             </div>
           ) : (
             <div className="mt-10 space-y-14">
@@ -96,12 +107,14 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        <section className="mt-20 sm:mt-28">
-          <SectionHeader index="02" label="New project" />
-          <div className="mt-8 max-w-xl">
-            <NewProjectForm />
-          </div>
-        </section>
+        {all.length > 0 && (
+          <section className="mt-20 sm:mt-28">
+            <SectionHeader index="02" label="New project" />
+            <div className="mt-8 max-w-xl">
+              <NewProjectForm />
+            </div>
+          </section>
+        )}
       </main>
     </>
   );

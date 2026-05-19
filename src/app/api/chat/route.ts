@@ -15,6 +15,7 @@ import {
   chatMessages,
   chatThreads,
   foremanMemories,
+  properties,
   projects,
   tasks,
   taskGuides,
@@ -54,7 +55,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set a task's status via setTaskStatus, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe or RENUMBER a task via editTaskDetails (use its 'num' arg to fix duplicate numbers — e.g. split three #30 into '30a'/'30b'/'30c'), REORDER the project task list via moveTask, MANAGE PHASES — moveTaskToPhase, movePhase, renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool. EVERY task tool works on ANY task from anywhere (project chat, the global bubble, or a task page): pass the 'task' arg as the task's # (e.g. '30a') or part of its title — you do NOT need the user to 'open' a task. If a # is ambiguous (duplicates), the tool tells you the candidates; pick by title or renumber them. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set a task's status via setTaskStatus, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe or RENUMBER a task via editTaskDetails (use its 'num' arg to fix duplicate numbers — e.g. split three #30 into '30a'/'30b'/'30c'), REORDER the project task list via moveTask, MANAGE PHASES — moveTaskToPhase, movePhase, renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool, save durable facts about THE PLACE via setPropertyDetails (type apartment/house/other, own/rent, location, name), and offer tappable quick replies via ask (accelerator only — the user can always type). EVERY task tool works on ANY task from anywhere (project chat, the global bubble, or a task page): pass the 'task' arg as the task's # (e.g. '30a') or part of its title — you do NOT need the user to 'open' a task. If a # is ambiguous (duplicates), the tool tells you the candidates; pick by title or renumber them. Take the action when the user asks. Don't just describe it — do it.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
 - SAFETY ON REWRITE: never silently drop a hazard that still applies under the new method. Re-derive safety for the NEW method from scratch. Example: switching from heat-gun stripping to SANDING old paint does NOT remove lead risk — sanding pre-1978 paint creates lead dust and still requires a lead test, containment, HEPA, and a P100. Keep the lead/asbestos warnings that still apply; only remove ones genuinely irrelevant to the new method.
@@ -136,8 +137,13 @@ export async function POST(req: Request) {
         summary: projects.summary,
         brief: projects.brief,
         propertyId: projects.propertyId,
+        propName: properties.name,
+        propType: properties.type,
+        propOwnership: properties.ownership,
+        propLocation: properties.location,
       })
       .from(projects)
+      .leftJoin(properties, eq(projects.propertyId, properties.id))
       .where(eq(projects.id, projectId)),
     db
       .select()
@@ -224,6 +230,28 @@ export async function POST(req: Request) {
     .map((m) => `- ${m.body}`)
     .join("\n");
   const priorSummary = threadRows[0]?.summary?.trim() ?? "";
+
+  // Conversational intake ("first scrivener"): what structured context is
+  // still missing. Injected as guidance only — opportunistic, never gating.
+  const placeName = project?.propName ?? null;
+  const placeNeeded = [
+    !project?.propType && "what kind of place it is (apartment / house / other)",
+    !project?.propOwnership &&
+      "whether they own or rent (condo / co-op if relevant)",
+    !project?.propLocation &&
+      "rough location (climate / code / permit context)",
+    (!placeName || /^my place$/i.test(placeName)) && "a name for the place",
+  ].filter(Boolean) as string[];
+  const projNeeded = [
+    (!project?.title || /^new renovation$/i.test(project.title)) &&
+      "what they're actually renovating — set a real title + tagline via updateProjectDetails",
+    !project?.brief &&
+      "the ground-truth brief (surfaces, age, constraints, scope) via setProjectBrief",
+  ].filter(Boolean) as string[];
+  const intakeBlock =
+    placeNeeded.length || projNeeded.length
+      ? `\n\n--- INTAKE: STILL NEEDED (pursue opportunistically — NEVER gate) ---\nYou're also this person's "first scrivener." Capture structure by conversation, never a form/wizard, never a checklist read aloud, never count questions. Two stages, in order:\n1) THE PLACE (once per property; every project on it reuses this): ${placeNeeded.length ? placeNeeded.join("; ") : "complete"}. Save each fact with setPropertyDetails the moment you learn it.\n2) THIS PROJECT: ${projNeeded.length ? projNeeded.join("; ") : "complete"}.\nAdapt to whatever they volunteer; infer and skip the obvious or irrelevant (a renter isn't asked about moving structural walls). Collect just enough to start and backfill the rest as the work surfaces it — do NOT block on completeness. Warm and brief, not an interrogation. No deadlines or dates. Use the ask tool to offer tappable quick replies for short choices (place type, own/rent) — but the user can always just type; chips never gate.`
+      : "";
   const denied = {
     ok: false as const,
     message:
@@ -1101,6 +1129,81 @@ export async function POST(req: Request) {
         );
       },
     }),
+    setPropertyDetails: tool({
+      description:
+        "Save durable facts about THE PLACE (the property this project is on) — reused by every project on it. Pass only the fields you're setting; capture them during intake or whenever the user states one.",
+      inputSchema: z.object({
+        name: z.string().optional().describe("A short name for the place"),
+        type: z
+          .string()
+          .optional()
+          .describe("apartment | house | other"),
+        ownership: z
+          .string()
+          .optional()
+          .describe("own | rent | condo | co-op"),
+        location: z
+          .string()
+          .optional()
+          .describe("City / area — for climate, code, permits"),
+      }),
+      execute: async ({ name, type, ownership, location }) => {
+        if (!writable) return denied;
+        if (!propertyId)
+          return {
+            ok: false as const,
+            message: "No property is linked to this project yet.",
+          };
+        const patch: {
+          name?: string;
+          type?: string;
+          ownership?: string;
+          location?: string;
+          updatedAt: Date;
+        } = { updatedAt: new Date() };
+        if (name?.trim()) patch.name = name.trim();
+        if (type?.trim()) patch.type = type.trim();
+        if (ownership?.trim()) patch.ownership = ownership.trim();
+        if (location?.trim()) patch.location = location.trim();
+        const fields = Object.keys(patch).filter((k) => k !== "updatedAt");
+        if (fields.length === 0)
+          return {
+            ok: false as const,
+            message:
+              "Nothing to save — give at least one of name / type / ownership / location.",
+          };
+        return commit(
+          "setPropertyDetails",
+          async () => {
+            await db
+              .update(properties)
+              .set(patch)
+              .where(eq(properties.id, propertyId));
+            revalidatePath("/");
+            touch();
+          },
+          { saved: fields },
+        );
+      },
+    }),
+    ask: tool({
+      description:
+        "Attach 2–6 tappable quick-reply chips to the question in your message (e.g. apartment / house / other). An accelerator only: the user can always ignore the chips and type instead — never require a chip, never block on one. Ask the question in your normal text; this just adds the buttons.",
+      inputSchema: z.object({
+        options: z
+          .array(z.string())
+          .min(2)
+          .max(6)
+          .describe("Short tappable answers"),
+      }),
+      execute: async ({ options }) => ({
+        ok: true as const,
+        options: options
+          .map((o) => o.trim())
+          .filter(Boolean)
+          .slice(0, 6),
+      }),
+    }),
   };
 
   const memoryBlock = `\n\n--- WHAT YOU REMEMBER (durable; survives "start fresh") ---\n${
@@ -1116,7 +1219,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: MODEL,
-    system: `${SYSTEM}\n\n--- ABOUT THIS PROJECT ---\n${projectInfo}${memoryBlock}${summaryBlock}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
+    system: `${SYSTEM}\n\n--- ABOUT THIS PROJECT ---\n${projectInfo}${memoryBlock}${summaryBlock}${intakeBlock}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
       taskId
         ? `--- CURRENT TASK CONTEXT ---\n${context}`
         : `--- MODE: PROJECT FOREMAN ---\nNo task is "open", but you can still act on ANY task directly: every task tool (setTaskStatus, updateTaskGuide, editTaskDetails, addNote, addBuyItem, logTime) takes a \`task\` arg — pass the task's # or part of its title (it's in ALL TASKS IN THIS PROJECT above). Never tell the user to open a task; just do it. Use editTaskDetails' \`num\` to fix duplicate task numbers.`

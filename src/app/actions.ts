@@ -74,6 +74,22 @@ export async function createProject(formData: FormData) {
   redirect(`/p/${created.id}`);
 }
 
+/** Phase 4 onboarding: create a starter project and drop the user into the
+ *  Foreman, where the conversational two-stage intake (the "still needed"
+ *  prompt block) interviews them for the place + project. The "New
+ *  renovation" title is the placeholder the intake prompt looks for. */
+export async function startGuidedSetup() {
+  const user = await requireUser();
+  const db = getDb();
+  const propertyId = await ensurePropertyId(user.id);
+  const [created] = await db
+    .insert(projects)
+    .values({ ownerId: user.id, propertyId, title: "New renovation" })
+    .returning({ id: projects.id });
+  revalidatePath("/");
+  redirect(`/p/${created.id}/foreman`);
+}
+
 export async function createProperty(formData: FormData) {
   const user = await requireUser();
   const name = String(formData.get("name") || "").trim();
