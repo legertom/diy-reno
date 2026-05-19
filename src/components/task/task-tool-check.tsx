@@ -76,7 +76,7 @@ export function TaskToolCheck({
         {have.map((t) => (
           <span
             key={t}
-            className="inline-flex items-center gap-1 rounded-full border border-[#cfe0cb] bg-positive-tint px-2.5 py-1 text-xs text-positive"
+            className="inline-flex items-center gap-1 rounded-full border border-positive/30 bg-positive-tint px-2.5 py-1 text-xs text-positive"
           >
             <Check className="size-3" strokeWidth={3} />
             {t}

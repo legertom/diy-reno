@@ -284,7 +284,7 @@ export function TaskChat({
                       key={i}
                       className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-wide uppercase ${
                         ok
-                          ? "border-[#cfe0cb] bg-positive-tint text-positive"
+                          ? "border-positive/30 bg-positive-tint text-positive"
                           : "border-line-strong bg-paper text-ink-faint"
                       }`}
                     >

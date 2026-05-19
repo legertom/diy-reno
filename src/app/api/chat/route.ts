@@ -54,7 +54,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set this task's status, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe via editTaskDetails, REORDER the project task list via moveTask (move any task before/after another, identified by its # from the task list above — works on ANY task, not just this one), MANAGE PHASES — moveTaskToPhase (put a task in a different/new phase), movePhase (reorder phases before/after another), renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set a task's status via setTaskStatus, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe or RENUMBER a task via editTaskDetails (use its 'num' arg to fix duplicate numbers — e.g. split three #30 into '30a'/'30b'/'30c'), REORDER the project task list via moveTask, MANAGE PHASES — moveTaskToPhase, movePhase, renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool. EVERY task tool works on ANY task from anywhere (project chat, the global bubble, or a task page): pass the 'task' arg as the task's # (e.g. '30a') or part of its title — you do NOT need the user to 'open' a task. If a # is ambiguous (duplicates), the tool tells you the candidates; pick by title or renumber them. Take the action when the user asks. Don't just describe it — do it.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
 - SAFETY ON REWRITE: never silently drop a hazard that still applies under the new method. Re-derive safety for the NEW method from scratch. Example: switching from heat-gun stripping to SANDING old paint does NOT remove lead risk — sanding pre-1978 paint creates lead dust and still requires a lead test, containment, HEPA, and a P100. Keep the lead/asbestos warnings that still apply; only remove ones genuinely irrelevant to the new method.
@@ -229,11 +229,6 @@ export async function POST(req: Request) {
     message:
       "You only have view access to this project, so I couldn't make that change.",
   };
-  const noTask = {
-    ok: false as const,
-    message:
-      "No task is open — you're the project Foreman here. Tell the user to open that specific task to do this, or use addTask / moveTask which work project-wide.",
-  };
   function touch() {
     if (taskId) revalidatePath(`/p/${projectId}/t/${taskId}`);
     revalidatePath(`/p/${projectId}`);
@@ -285,6 +280,46 @@ export async function POST(req: Request) {
       .from(phases)
       .where(eq(phases.projectId, projectId))
       .orderBy(asc(phases.position));
+
+  // Resolve which task a task-scoped tool should act on. The Foreman can
+  // act on ANY task from anywhere (project chat, global bubble, or a task
+  // page) — pass `task` as its # or part of its title; falls back to the
+  // open task. Ambiguity (e.g. duplicate #30) is reported, never guessed.
+  const tnum = (s: string) => s.replace(/^#/, "").trim().toLowerCase();
+  function resolveTaskId(
+    arg?: string,
+  ): { ok: true; id: string } | { ok: false; message: string } {
+    const a = arg?.trim();
+    if (a) {
+      const byNum = allTasks.filter((x) => tnum(x.num) === tnum(a));
+      if (byNum.length === 1) return { ok: true, id: byNum[0].id };
+      const q = a.toLowerCase().replace(/^#/, "");
+      const byTitle = allTasks.filter((x) =>
+        x.title.toLowerCase().includes(q),
+      );
+      if (byNum.length === 0 && byTitle.length === 1)
+        return { ok: true, id: byTitle[0].id };
+      const cands = byNum.length ? byNum : byTitle;
+      if (cands.length > 1)
+        return {
+          ok: false,
+          message:
+            `"${a}" matches ${cands.length} tasks: ` +
+            cands.map((x) => `#${x.num} "${x.title}"`).join(" | ") +
+            `. Re-call with a distinct title (or fix the duplicate # via editTaskDetails).`,
+        };
+      return {
+        ok: false,
+        message: `No task matches "${a}". Use a # from ALL TASKS IN THIS PROJECT, or part of the title.`,
+      };
+    }
+    if (taskId) return { ok: true, id: taskId };
+    return {
+      ok: false,
+      message:
+        "Which task? Pass its # (e.g. '30a') or part of its title — I can act on any task from here, it doesn't need to be opened.",
+    };
+  }
 
   const tools = {
     setProjectBrief: tool({
@@ -448,13 +483,19 @@ export async function POST(req: Request) {
     }),
     setTaskStatus: tool({
       description:
-        "Set this task's status. Use when the user says it's done, in progress, or not started.",
+        "Set a task's status (done / in progress / not started). Works on ANY task from anywhere — pass `task` as its # or title; omit only if a task is already open.",
       inputSchema: z.object({
         status: z.enum(["todo", "in_progress", "done"]),
+        task: z
+          .string()
+          .optional()
+          .describe("Task # (e.g. '30a') or part of its title"),
       }),
-      execute: async ({ status }) => {
+      execute: async ({ status, task }) => {
         if (!writable) return denied;
-        if (!taskId) return noTask;
+        const r = resolveTaskId(task);
+        if (!r.ok) return r;
+        const tid = r.id;
         return commit(
           "setTaskStatus",
           async () => {
@@ -465,8 +506,9 @@ export async function POST(req: Request) {
                 completedAt: status === "done" ? new Date() : null,
                 updatedAt: new Date(),
               })
-              .where(eq(tasks.id, taskId));
+              .where(eq(tasks.id, tid));
             touch();
+            revalidatePath(`/p/${projectId}/t/${tid}`);
           },
           { status },
         );
@@ -752,8 +794,12 @@ export async function POST(req: Request) {
     }),
     updateTaskGuide: tool({
       description:
-        "Rewrite this task's PLAN. Pass only the sections you are changing; each provided array fully REPLACES that section. Use when the user wants the steps/tools/materials/safety/tips corrected or rewritten.",
+        "Rewrite a task's PLAN. Pass only the sections you are changing; each provided array fully REPLACES that section. Works on ANY task — pass `task` as its # or title; omit only if a task is already open.",
       inputSchema: z.object({
+        task: z
+          .string()
+          .optional()
+          .describe("Task # (e.g. '30a') or part of its title"),
         steps: z.array(z.string()).optional(),
         tools: z.array(z.string()).optional(),
         materials: z.array(z.string()).optional(),
@@ -762,7 +808,9 @@ export async function POST(req: Request) {
       }),
       execute: async (input) => {
         if (!writable) return denied;
-        if (!taskId) return noTask;
+        const r = resolveTaskId(input.task);
+        if (!r.ok) return r;
+        const tid = r.id;
         const set: Partial<{
           steps: string[];
           tools: string[];
@@ -791,7 +839,7 @@ export async function POST(req: Request) {
             await db
               .insert(taskGuides)
               .values({
-                taskId,
+                taskId: tid,
                 steps: set.steps ?? [],
                 tools: set.tools ?? [],
                 materials: set.materials ?? [],
@@ -802,8 +850,9 @@ export async function POST(req: Request) {
             await db
               .update(tasks)
               .set({ updatedAt: new Date() })
-              .where(eq(tasks.id, taskId));
+              .where(eq(tasks.id, tid));
             touch();
+            revalidatePath(`/p/${projectId}/t/${tid}`);
           },
           { updated: changed },
         );
@@ -811,20 +860,38 @@ export async function POST(req: Request) {
     }),
     editTaskDetails: tool({
       description:
-        "Rename this task or rewrite its one-line description. Use when the task's title/detail no longer matches the real job.",
+        "Rename a task, rewrite its one-line description, and/or change its # (use `num` to fix duplicate numbers, e.g. split three #30 into '30a'/'30b'/'30c'). Works on ANY task — pass `task` as its current # or title; omit only if a task is already open.",
       inputSchema: z.object({
+        task: z
+          .string()
+          .optional()
+          .describe("Which task: current # or part of its title"),
         title: z.string().min(1).optional(),
         detail: z.string().optional(),
+        num: z
+          .string()
+          .optional()
+          .describe("New task number/label, e.g. '30a' (no leading #)"),
       }),
-      execute: async ({ title, detail }) => {
+      execute: async ({ task, title, detail, num }) => {
         if (!writable) return denied;
-        if (!taskId) return noTask;
-        const set: { title?: string; detail?: string; updatedAt: Date } = {
-          updatedAt: new Date(),
-        };
+        const r = resolveTaskId(task);
+        if (!r.ok) return r;
+        const tid = r.id;
+        const set: {
+          title?: string;
+          detail?: string;
+          num?: string;
+          updatedAt: Date;
+        } = { updatedAt: new Date() };
         if (title) set.title = title.trim();
         if (detail !== undefined) set.detail = detail.trim();
-        if (!("title" in set) && !("detail" in set))
+        if (num) set.num = num.replace(/^#/, "").trim();
+        if (
+          !("title" in set) &&
+          !("detail" in set) &&
+          !("num" in set)
+        )
           return {
             ok: false as const,
             message: "Nothing to change.",
@@ -832,75 +899,100 @@ export async function POST(req: Request) {
         return commit(
           "editTaskDetails",
           async () => {
-            await db.update(tasks).set(set).where(eq(tasks.id, taskId));
+            await db.update(tasks).set(set).where(eq(tasks.id, tid));
             touch();
+            revalidatePath(`/p/${projectId}/t/${tid}`);
           },
-          { title: set.title, detail: set.detail },
+          { title: set.title, detail: set.detail, num: set.num },
         );
       },
     }),
     addNote: tool({
       description:
-        "Add a work note to this task (a tip learned, a heads-up, what's left).",
-      inputSchema: z.object({ body: z.string().min(1) }),
-      execute: async ({ body }) => {
+        "Add a work note to a task (a tip learned, a heads-up, what's left). Works on ANY task — pass `task` as its # or title; omit only if a task is already open.",
+      inputSchema: z.object({
+        body: z.string().min(1),
+        task: z
+          .string()
+          .optional()
+          .describe("Task # (e.g. '30a') or part of its title"),
+      }),
+      execute: async ({ body, task }) => {
         if (!writable) return denied;
-        if (!taskId) return noTask;
+        const r = resolveTaskId(task);
+        if (!r.ok) return r;
+        const tid = r.id;
         return commit(
           "addNote",
           async () => {
             await db.insert(notes).values({
-              taskId,
+              taskId: tid,
               projectId,
               authorId: userId,
               body: body.trim(),
             });
             touch();
+            revalidatePath(`/p/${projectId}/t/${tid}`);
           },
           { body: body.trim() },
         );
       },
     }),
     addBuyItem: tool({
-      description: "Add an item to this task's shopping/buy list.",
+      description:
+        "Add an item to a task's shopping/buy list. Works on ANY task — pass `task` as its # or title; omit only if a task is already open.",
       inputSchema: z.object({
         label: z.string().min(1),
         quantity: z.string().optional(),
+        task: z
+          .string()
+          .optional()
+          .describe("Task # (e.g. '30a') or part of its title"),
       }),
-      execute: async ({ label, quantity }) => {
+      execute: async ({ label, quantity, task }) => {
         if (!writable) return denied;
-        if (!taskId) return noTask;
+        const r = resolveTaskId(task);
+        if (!r.ok) return r;
+        const tid = r.id;
         return commit(
           "addBuyItem",
           async () => {
             await db.insert(shoppingItems).values({
               projectId,
-              taskId,
+              taskId: tid,
               label: label.trim(),
               quantity: quantity?.trim() || null,
               addedById: userId,
             });
             touch();
+            revalidatePath(`/p/${projectId}/t/${tid}`);
           },
           { label: label.trim() },
         );
       },
     }),
     logTime: tool({
-      description: "Log time the user spent on this task, in minutes.",
+      description:
+        "Log time the user spent on a task, in minutes. Works on ANY task — pass `task` as its # or title; omit only if a task is already open.",
       inputSchema: z.object({
         minutes: z.number().positive(),
         note: z.string().optional(),
+        task: z
+          .string()
+          .optional()
+          .describe("Task # (e.g. '30a') or part of its title"),
       }),
-      execute: async ({ minutes, note }) => {
+      execute: async ({ minutes, note, task }) => {
         if (!writable) return denied;
-        if (!taskId) return noTask;
+        const r = resolveTaskId(task);
+        if (!r.ok) return r;
+        const tid = r.id;
         const seconds = Math.round(minutes * 60);
         return commit(
           "logTime",
           async () => {
             await db.insert(timeLogs).values({
-              taskId,
+              taskId: tid,
               projectId,
               userId,
               startedAt: new Date(Date.now() - seconds * 1000),
@@ -909,6 +1001,7 @@ export async function POST(req: Request) {
               note: note?.trim() || null,
             });
             touch();
+            revalidatePath(`/p/${projectId}/t/${tid}`);
           },
           { minutes },
         );
@@ -1026,7 +1119,7 @@ export async function POST(req: Request) {
     system: `${SYSTEM}\n\n--- ABOUT THIS PROJECT ---\n${projectInfo}${memoryBlock}${summaryBlock}\n\n--- USER'S OWNED TOOLS ---\n${toolsList}\n\n--- PROJECT PHASES ---\n${phaseList}\n\n--- ALL TASKS IN THIS PROJECT (current order) ---\n${taskList}\n\n${
       taskId
         ? `--- CURRENT TASK CONTEXT ---\n${context}`
-        : `--- MODE: PROJECT FOREMAN ---\nNo specific task is open. You're helping plan the whole project: answer questions, advise sequencing, and CREATE or REORDER tasks (addTask / moveTask) when asked. For status changes, notes, time logs, or rewriting one task's plan, tell the user to open that specific task — those tools need a task open.`
+        : `--- MODE: PROJECT FOREMAN ---\nNo task is "open", but you can still act on ANY task directly: every task tool (setTaskStatus, updateTaskGuide, editTaskDetails, addNote, addBuyItem, logTime) takes a \`task\` arg — pass the task's # or part of its title (it's in ALL TASKS IN THIS PROJECT above). Never tell the user to open a task; just do it. Use editTaskDetails' \`num\` to fix duplicate task numbers.`
     }`,
     messages: await convertToModelMessages(recent),
     tools,

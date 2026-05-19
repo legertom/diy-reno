@@ -164,8 +164,13 @@ select {
   color: var(--color-ink);
 }
 
-button {
-  color: inherit;
+/* In @layer base so Tailwind text utilities (text-white, text-ink, …)
+   still win on buttons — an unlayered rule here would clobber them and
+   make e.g. a `bg-blueprint text-white` button render dark-on-dark. */
+@layer base {
+  button {
+    color: inherit;
+  }
 }
 
 input::placeholder,
