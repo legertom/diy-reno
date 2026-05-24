@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, X, Sparkles, Loader2 } from "lucide-react";
+import { Pencil, X, Sparkles, Loader2, Download } from "lucide-react";
 import { updateProject } from "@/app/actions";
 import { Button } from "@/components/ui";
 import { BriefSheet } from "@/components/brief-sheet";
@@ -98,28 +98,37 @@ export function ProjectEditor({
           <span className="font-mono text-[10px] tracking-[0.18em] text-ink-faint uppercase">
             The Foreman reads this on every task
           </span>
-          {canWrite && (
-            <div className="flex shrink-0 items-center gap-2">
-              {hasBriefText && (
-                <button
-                  type="button"
-                  onClick={() => polish(brief!)}
-                  disabled={polishing}
-                  title="Re-run the polish on this brief"
-                  className="inline-flex items-center gap-1.5 rounded-md border border-blueprint/40 bg-blueprint-tint px-2.5 py-1.5 text-xs font-medium text-blueprint transition-colors hover:border-blueprint disabled:opacity-50"
-                >
-                  {polishing ? (
-                    <>
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Formatting…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="size-3.5" /> {formatLabel}
-                    </>
-                  )}
-                </button>
-              )}
+          <div className="flex shrink-0 items-center gap-2">
+            {briefStructured && (
+              <a
+                href={`/api/brief-pdf/${projectId}`}
+                title="Download a printable PDF of this brief"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line-strong px-2.5 py-1.5 text-xs font-medium text-ink-soft transition-colors hover:border-brass hover:text-brass"
+              >
+                <Download className="size-3.5" /> PDF
+              </a>
+            )}
+            {canWrite && hasBriefText && (
+              <button
+                type="button"
+                onClick={() => polish(brief!)}
+                disabled={polishing}
+                title="Re-run the polish on this brief"
+                className="inline-flex items-center gap-1.5 rounded-md border border-blueprint/40 bg-blueprint-tint px-2.5 py-1.5 text-xs font-medium text-blueprint transition-colors hover:border-blueprint disabled:opacity-50"
+              >
+                {polishing ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Formatting…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5" /> {formatLabel}
+                  </>
+                )}
+              </button>
+            )}
+            {canWrite && (
               <button
                 type="button"
                 onClick={() => {
@@ -130,8 +139,8 @@ export function ProjectEditor({
               >
                 <Pencil className="size-3.5" /> Edit
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         {error && <p className="mt-3 text-xs text-danger">{error}</p>}
         {briefStructured ? (
