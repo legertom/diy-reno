@@ -1,19 +1,43 @@
 import Link from "next/link";
-import { ArrowUpRight, Hammer } from "lucide-react";
-import { requireUser, listProjectsForUser } from "@/lib/projects";
-import { startGuidedSetup } from "@/app/actions";
+import { ArrowUpRight } from "lucide-react";
+import type { UIMessage } from "ai";
+import {
+  requireUser,
+  listProjectsForUser,
+  ensureIntakePlaceholder,
+  getProjectChat,
+  INTAKE_PLACEHOLDER_TITLE,
+} from "@/lib/projects";
 import { AppHeader } from "@/components/app-header";
-import { Eyebrow, Badge, Button, SectionHeader } from "@/components/ui";
+import { Eyebrow, Badge, SectionHeader } from "@/components/ui";
 import { NewProjectForm } from "@/components/new-project-form";
+import { IntakeFlow } from "@/components/intake-flow";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   const { owned, shared } = await listProjectsForUser(user.id, user.email);
   const all = [...owned, ...shared];
 
+  // Hide intake placeholders from the listing — they only exist so the
+  // modal has a project_id to write to, and shouldn't look like real work
+  // sitting on the dashboard until the Foreman has renamed them.
+  const visible = all.filter(
+    (p) => p.title !== INTAKE_PLACEHOLDER_TITLE,
+  );
+
+  // First-time users (no real projects yet) get the auto-opening intake
+  // modal. The placeholder is created idempotently so refreshing or
+  // dismissing/reopening continues the same chat thread.
+  let intake: { projectId: string; messages: UIMessage[] } | null = null;
+  if (visible.length === 0) {
+    const { projectId } = await ensureIntakePlaceholder(user.id);
+    const messages = (await getProjectChat(projectId)) as UIMessage[];
+    intake = { projectId, messages };
+  }
+
   // Group by Property (the organizing parent introduced in Phase 1).
-  const groups: { name: string; items: typeof all }[] = [];
-  for (const p of all) {
+  const groups: { name: string; items: typeof visible }[] = [];
+  for (const p of visible) {
     const name = p.property?.name ?? "My place";
     let g = groups.find((x) => x.name === name);
     if (!g) {
@@ -41,28 +65,11 @@ export default async function DashboardPage() {
         <section className="mt-16 sm:mt-24">
           <SectionHeader index="01" label="Projects" />
 
-          {all.length === 0 ? (
-            <div className="mt-8 max-w-xl">
-              <p className="text-base text-ink-soft">
-                Let&apos;s set up your place and your first project — just
-                talk it through with the Foreman. No forms, no rush; answer
-                what you know and skip the rest.
-              </p>
-              <form action={startGuidedSetup} className="mt-7">
-                <Button type="submit">
-                  <Hammer className="size-4" />
-                  Set up with the Foreman
-                </Button>
-              </form>
-              <details className="mt-10">
-                <summary className="cursor-pointer text-sm text-ink-faint transition-colors hover:text-ink">
-                  Or create a project yourself
-                </summary>
-                <div className="mt-6">
-                  <NewProjectForm />
-                </div>
-              </details>
-            </div>
+          {visible.length === 0 && intake ? (
+            <IntakeFlow
+              projectId={intake.projectId}
+              initialMessages={intake.messages}
+            />
           ) : (
             <div className="mt-10 space-y-14">
               {groups.map((g) => (
@@ -107,7 +114,7 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        {all.length > 0 && (
+        {visible.length > 0 && (
           <section className="mt-20 sm:mt-28">
             <SectionHeader index="02" label="New project" />
             <div className="mt-8 max-w-xl">

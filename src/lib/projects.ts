@@ -409,6 +409,77 @@ export async function getProjectChat(projectId: string) {
   }));
 }
 
+/** Project title used as the placeholder while intake is still gathering
+ *  the real one. Filtered out of the dashboard listing and used as the
+ *  signal "this project is mid-intake" by the modal. */
+export const INTAKE_PLACEHOLDER_TITLE = "New renovation";
+
+/** Returns the user's in-progress intake project (one with the placeholder
+ *  title still set), creating one with a seeded Foreman welcome if none
+ *  exists. Idempotent so it's safe to call on every empty-state render.
+ *  The chat is then loaded with getProjectChat(projectId). */
+export async function ensureIntakePlaceholder(
+  userId: string,
+): Promise<{ projectId: string }> {
+  const db = getDb();
+
+  const [existing] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        eq(projects.ownerId, userId),
+        eq(projects.title, INTAKE_PLACEHOLDER_TITLE),
+      ),
+    )
+    .orderBy(desc(projects.createdAt))
+    .limit(1);
+  if (existing) return { projectId: existing.id };
+
+  // Reuse an existing property if the user has one, else create the
+  // default "My place" (renamed by setPropertyDetails during intake).
+  const [property] = await db
+    .select({ id: properties.id })
+    .from(properties)
+    .where(eq(properties.ownerId, userId))
+    .limit(1);
+  const propertyId =
+    property?.id ??
+    (
+      await db
+        .insert(properties)
+        .values({ ownerId: userId, name: "My place" })
+        .returning({ id: properties.id })
+    )[0].id;
+
+  const [created] = await db
+    .insert(projects)
+    .values({
+      ownerId: userId,
+      propertyId,
+      title: INTAKE_PLACEHOLDER_TITLE,
+    })
+    .returning({ id: projects.id });
+
+  // Seed the Foreman's opening turn so the user is greeted, not staring
+  // at an empty chat. Project-level (taskId null) matches getProjectChat.
+  await db.insert(chatMessages).values({
+    projectId: created.id,
+    taskId: null,
+    role: "assistant",
+    authorId: null,
+    parts: [
+      {
+        type: "text",
+        text:
+          "Hey — I'm the Foreman. Before we get into plans, just tell me what you're renovating. One sentence is plenty — like \"kitchen in my Brooklyn co-op\" or \"bathroom in our 1920s house.\"",
+      },
+    ],
+  });
+
+  return { projectId: created.id };
+}
+
 /** First not-done task in phase + position order — drives "Next up". */
 export function computeNextUp(
   board: Awaited<ReturnType<typeof getBoard>>,
