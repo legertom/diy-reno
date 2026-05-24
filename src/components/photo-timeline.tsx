@@ -71,11 +71,108 @@ export function PhotoTimeline({
   heroShotPhotoId: string | null;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [roomFilter, setRoomFilter] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [safetyOnly, setSafetyOnly] = useState(false);
+
+  const allTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of photos) {
+      for (const t of p.tags ?? []) {
+        counts.set(t, (counts.get(t) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([t]) => t);
+  }, [photos]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return photos.filter((p) => {
+      if (roomFilter && p.roomName !== roomFilter) return false;
+      if (tagFilter && !p.tags?.includes(tagFilter)) return false;
+      if (
+        safetyOnly &&
+        !(p.safetyFlags ?? []).some(
+          (f) => f.severity === "warn" || f.severity === "stop",
+        )
+      )
+        return false;
+      if (!q) return true;
+      const haystacks = [
+        p.caption,
+        p.captionAi,
+        p.roomName,
+        ...(p.tags ?? []),
+        ...(p.rois ?? []).map((r) => r.caption),
+        p.taskTitle,
+      ];
+      return haystacks.some(
+        (h) => typeof h === "string" && h.toLowerCase().includes(q),
+      );
+    });
+  }, [photos, search, roomFilter, tagFilter, safetyOnly]);
 
   return (
     <>
-      <div className="mt-10 grid grid-cols-3 gap-px bg-line-strong sm:grid-cols-4 md:grid-cols-5">
-        {photos.map((p, i) => (
+      <div className="mt-8 space-y-3 px-5 sm:px-8">
+        <input
+          type="search"
+          placeholder="Search captions, tags, rooms…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full rounded-full border border-line-strong bg-paper px-4 py-2 text-sm outline-none placeholder:text-ink-faint focus:border-brass"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {rooms.map((r) => (
+            <FilterChip
+              key={r}
+              label={r}
+              active={roomFilter === r}
+              onClick={() => setRoomFilter(roomFilter === r ? null : r)}
+            />
+          ))}
+          {allTags.map((t) => (
+            <FilterChip
+              key={t}
+              label={`#${t}`}
+              active={tagFilter === t}
+              onClick={() => setTagFilter(tagFilter === t ? null : t)}
+            />
+          ))}
+          <FilterChip
+            label="Safety"
+            tone="warn"
+            active={safetyOnly}
+            onClick={() => setSafetyOnly((s) => !s)}
+          />
+          {(roomFilter || tagFilter || safetyOnly || search) && (
+            <button
+              type="button"
+              onClick={() => {
+                setRoomFilter(null);
+                setTagFilter(null);
+                setSafetyOnly(false);
+                setSearch("");
+              }}
+              className="ml-1 text-[11px] font-semibold tracking-[0.14em] text-ink-faint uppercase hover:text-ink"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {filtered.length !== photos.length && (
+          <p className="text-[11px] font-semibold tracking-[0.16em] text-ink-faint uppercase">
+            {filtered.length} of {photos.length}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-px bg-line-strong sm:grid-cols-4 md:grid-cols-5">
+        {filtered.map((p, i) => (
           <button
             key={p.id}
             type="button"
@@ -107,7 +204,7 @@ export function PhotoTimeline({
       {openIdx !== null && (
         <Lightbox
           projectId={projectId}
-          photos={photos}
+          photos={filtered}
           rooms={rooms}
           tasks={tasks}
           canWrite={canWrite}
@@ -530,6 +627,38 @@ function LightboxMeta({
         )}
       </div>
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+  tone,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  tone?: "warn";
+}) {
+  const base =
+    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors";
+  const warnActive =
+    "border-warn bg-warn-tint text-warn";
+  const neutralActive = "border-ink bg-ink text-paper";
+  const idle =
+    "border-line-strong bg-card text-ink-soft hover:border-ink hover:text-ink";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`${base} ${
+        active ? (tone === "warn" ? warnActive : neutralActive) : idle
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 

@@ -294,10 +294,17 @@ Exit: progress reveals itself without the user filing anything.
 
 ### 5.8  Organization — clusters, search, photo → task
 
+> ✓ **5.8 (search + filter) shipped** — pending merge (PR #5,
+> 2026-05-24). Free-text search + room / tag / safety filter chips
+> on the timeline; lightbox respects the filter so swipe stays
+> in-set. Auto-cluster, photo→task draft, bulk select remain as
+> follow-ups (photo→task gets the 5.6 Ask-the-Foreman flow for
+> now — say "make this corner a task" with the photo attached).
+
 The tags from 5.3 finally earn their cost.
 
 - [ ] Auto-cluster by room and phase
-- [ ] Filter chips + free-text search across captions, tags, AND
+- [x] Filter chips + free-text search across captions, tags, AND
       ROI captions (so a search hits "tile spacing" even if only an
       ROI mentioned it)
 - [ ] **Photo → task draft** — detected issues (mostly ROIs in the
