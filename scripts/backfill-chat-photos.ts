@@ -20,7 +20,11 @@ if (!DB_URL) {
   process.exit(1);
 }
 
-const db = drizzle(neon(DB_URL), { schema });
+// Must match src/db/index.ts — without `casing: "snake_case"`, drizzle
+// emits the camelCase field names (e.g. "createdAt") and Postgres rejects
+// them (`column "createdAt" does not exist`). This bug failed every
+// build between commits 8f5c16a and the fix here.
+const db = drizzle(neon(DB_URL), { schema, casing: "snake_case" });
 
 type FilePart = {
   type?: unknown;
