@@ -252,15 +252,22 @@ visible, scrubbable journey.
 
 ### 5.6  Photo critique — Foreman on real work
 
+> ✓ **5.6 (drop-into-chat) shipped** — pending merge (PR #4,
+> 2026-05-24). Lightbox "Ask the Foreman" button closes the lightbox
+> and opens the project-level Foreman bubble with the photo pre-
+> attached. Uses the existing multimodal chat + task tools — no
+> per-photo persistent thread yet; that becomes a follow-up if the
+> in-chat flow doesn't meet the need.
+
 Cheapest vision-to-text Foreman interaction. Highest pain relief for
 the solo DIYer wondering "did I do this right?"
 
 - [ ] Per-photo Foreman thread, pinned to the photo
-- [ ] "Look at my work" entrypoint on every photo — one button,
+- [x] "Look at my work" entrypoint on every photo — one button,
       thumb-reachable
-- [ ] Foreman's response uses the existing character/voice and can
+- [x] Foreman's response uses the existing character/voice and can
       produce tasks via the existing task tools
-- [ ] Drop a photo into the project-level Foreman chat as a soft
+- [x] Drop a photo into the project-level Foreman chat as a soft
       reference; carries its tags AND its ROIs (from 5.4) into the
       prompt
 

@@ -20,6 +20,7 @@ import {
   CornerDownRight,
   Loader2,
   Home,
+  MessageSquare,
 } from "lucide-react";
 import {
   deletePhoto,
@@ -28,6 +29,7 @@ import {
   updatePhotoMeta,
 } from "@/app/actions";
 import type { TimelinePhoto } from "@/lib/projects";
+import { OPEN_FOREMAN_EVENT } from "@/components/foreman-bubble";
 
 type Task = { id: string; num: string; title: string };
 
@@ -225,8 +227,24 @@ function Lightbox({
           canWrite={canWrite}
           isHeroShot={active.id === heroShotPhotoId}
           onDeleted={() => {
-            // Close after delete; the page revalidates on the action.
             onClose();
+          }}
+          onAskForeman={() => {
+            // Close the lightbox FIRST (it covers the viewport at z-50, so
+            // the bubble would be hidden behind it), then dispatch a single
+            // event carrying the projectId + attachment so there's no
+            // mount-vs-listener race.
+            onClose();
+            window.dispatchEvent(
+              new CustomEvent(OPEN_FOREMAN_EVENT, {
+                detail: {
+                  projectId,
+                  attach: {
+                    url: active.url,
+                  },
+                },
+              }),
+            );
           }}
         />
       )}
@@ -242,6 +260,7 @@ function LightboxMeta({
   canWrite,
   isHeroShot,
   onDeleted,
+  onAskForeman,
 }: {
   projectId: string;
   photo: TimelinePhoto;
@@ -250,6 +269,7 @@ function LightboxMeta({
   canWrite: boolean;
   isHeroShot: boolean;
   onDeleted: () => void;
+  onAskForeman: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [caption, setCaption] = useState(photo.caption ?? "");
@@ -328,84 +348,93 @@ function LightboxMeta({
             </div>
             <ROIStrip photo={photo} />
 
-            {canWrite && (
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditing(true)}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10"
-                >
-                  <Pencil className="size-3" /> Edit
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await setHeroShot({
-                        projectId,
-                        photoId: isHeroShot ? null : photo.id,
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onAskForeman}
+                className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-black hover:bg-white/90"
+              >
+                <MessageSquare className="size-3" /> Ask the Foreman
+              </button>
+              {canWrite && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10"
+                  >
+                    <Pencil className="size-3" /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await setHeroShot({
+                          projectId,
+                          photoId: isHeroShot ? null : photo.id,
+                        });
+                      })
+                    }
+                    className={
+                      isHeroShot
+                        ? "inline-flex items-center gap-1 rounded-full border border-brass/60 bg-brass/15 px-3 py-1.5 text-[12px] text-brass hover:bg-brass/25 disabled:opacity-50"
+                        : "inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10 disabled:opacity-50"
+                    }
+                    aria-pressed={isHeroShot}
+                    title={
+                      isHeroShot
+                        ? "Currently today's view on the home screen"
+                        : "Show this on the home screen as today's view"
+                    }
+                  >
+                    <Home className="size-3" />
+                    {isHeroShot ? "Today's view" : "Set as today's view"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await movePhoto({ id: photo.id, direction: "up" });
+                      })
+                    }
+                    className="grid size-8 place-items-center rounded-full border border-white/20 hover:bg-white/10 disabled:opacity-50"
+                    aria-label="Move earlier in timeline"
+                  >
+                    <ChevronUp className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await movePhoto({ id: photo.id, direction: "down" });
+                      })
+                    }
+                    className="grid size-8 place-items-center rounded-full border border-white/20 hover:bg-white/10 disabled:opacity-50"
+                    aria-label="Move later in timeline"
+                  >
+                    <ChevronDown className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!confirm("Delete this photo?")) return;
+                      startTransition(async () => {
+                        await deletePhoto(photo.id);
+                        onDeleted();
                       });
-                    })
-                  }
-                  className={
-                    isHeroShot
-                      ? "inline-flex items-center gap-1 rounded-full border border-brass/60 bg-brass/15 px-3 py-1.5 text-[12px] text-brass hover:bg-brass/25 disabled:opacity-50"
-                      : "inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10 disabled:opacity-50"
-                  }
-                  aria-pressed={isHeroShot}
-                  title={
-                    isHeroShot
-                      ? "Currently today's view on the home screen"
-                      : "Show this on the home screen as today's view"
-                  }
-                >
-                  <Home className="size-3" />
-                  {isHeroShot ? "Today's view" : "Set as today's view"}
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await movePhoto({ id: photo.id, direction: "up" });
-                    })
-                  }
-                  className="grid size-8 place-items-center rounded-full border border-white/20 hover:bg-white/10 disabled:opacity-50"
-                  aria-label="Move earlier in timeline"
-                >
-                  <ChevronUp className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      await movePhoto({ id: photo.id, direction: "down" });
-                    })
-                  }
-                  className="grid size-8 place-items-center rounded-full border border-white/20 hover:bg-white/10 disabled:opacity-50"
-                  aria-label="Move later in timeline"
-                >
-                  <ChevronDown className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={pending}
-                  onClick={() => {
-                    if (!confirm("Delete this photo?")) return;
-                    startTransition(async () => {
-                      await deletePhoto(photo.id);
-                      onDeleted();
-                    });
-                  }}
-                  className="ml-auto grid size-8 place-items-center rounded-full border border-white/20 text-red-300 hover:bg-red-500/20"
-                  aria-label="Delete photo"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            )}
+                    }}
+                    className="ml-auto grid size-8 place-items-center rounded-full border border-white/20 text-red-300 hover:bg-red-500/20"
+                    aria-label="Delete photo"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </>
+              )}
+            </div>
           </>
         ) : (
           <form

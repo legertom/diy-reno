@@ -84,10 +84,15 @@ export function TaskChat({
   projectId,
   taskId = null,
   initialMessages,
+  initialAttachments,
 }: {
   projectId: string;
   taskId?: string | null;
   initialMessages: UIMessage[];
+  /** Pre-seed the attachment tray — used by Phase 5.6 "Ask the
+   *  Foreman" from the photo lightbox so the timing race between
+   *  bubble-open and ATTACH_EVENT doesn't matter. */
+  initialAttachments?: Attachment[];
 }) {
   const router = useRouter();
   const { messages, sendMessage, status, stop, setMessages } = useChat({
@@ -102,7 +107,9 @@ export function TaskChat({
   });
 
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachments, setAttachments] = useState<Attachment[]>(
+    initialAttachments ?? [],
+  );
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
