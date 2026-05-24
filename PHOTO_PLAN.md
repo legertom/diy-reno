@@ -8,6 +8,26 @@
 > `AGENTS.md`, `README.md`, and `PLAN.md` first; this plan assumes all
 > three.
 
+## Overnight run 2026-05-24
+
+- **✓ 5.1 shipped** — [PR #1](https://github.com/legertom/diy-reno/pull/1)
+  merged (`c2eda67`). §5 migration pipeline green; live "Kitchen
+  Renovation" intact, new columns `taken_at` / `orientation` /
+  `room_name` / `position` in `photo`. Also fixed a pre-existing
+  `backfill-chat-photos.ts` casing bug that had been failing every
+  build since `8f5c16a`.
+- **In flight:** 5.2 + 5.3 (dream hero + passive vision) on branch
+  `phase-5-2-3-dream-and-vision`. Migration `0005_project_dream_hero.sql`
+  drafted (additive: `style_profile`, `dream_image_url`,
+  `dream_pathname`, `dream_prompt`, `dream_rendered_at` on `project`).
+- **Tom-must-verify (5.1):** mobile capture flow (camera icons on home
+  / task row), `/p/<projectId>/photos` timeline + lightbox + reorder +
+  delete, EXIF date display. Listed in PR #1 body.
+- **Exact next action when you resume:** continue on
+  `phase-5-2-3-dream-and-vision` — the schema migration is staged, next
+  step is `src/lib/dream.ts` (Gemini 2.5 Flash Image render via AI
+  Gateway → Blob cache → row update), then home-page IA shift.
+
 ---
 
 ## 0. Thesis
@@ -80,6 +100,8 @@ Unchanged — recap for the parts that bite hardest in photo work:
 ## 3. Build order
 
 ### 5.1  Foundation — timeline, capture, attach
+
+> ✓ **5.1 shipped** — `c2eda67` (PR #1, 2026-05-24).
 
 The scaffolding everything else stands on. No AI yet. **~60% already
 in code** — see PHOTO_EXECUTION_PROMPT §0 for what's shipped.
