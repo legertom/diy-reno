@@ -178,6 +178,13 @@ export const projects = pgTable(
       mode: "date",
       withTimezone: true,
     }),
+    /** Phase 5.5: the user-nominated "today's view" photo for the
+     *  reality-vs-dream scrub on the home page. FK to photo.id with
+     *  set-null on delete so the timeline can churn without breaking
+     *  the home view. Self-reference avoided in the type-level FK to
+     *  keep the table-order in this file simple — the SQL migration
+     *  declares the constraint. */
+    heroShotPhotoId: text("hero_shot_photo_id"),
     createdAt: now(),
     updatedAt: now(),
   },
