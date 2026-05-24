@@ -115,6 +115,7 @@ export default async function ProjectPage({
               title={project.title}
               summary={project.summary}
               brief={project.brief}
+              briefStructured={project.briefStructured}
               canWrite={writable}
             />
           </Card>

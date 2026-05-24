@@ -5,18 +5,22 @@ import { useRouter } from "next/navigation";
 import { Pencil, X, Sparkles, Loader2 } from "lucide-react";
 import { updateProject } from "@/app/actions";
 import { Button } from "@/components/ui";
+import { BriefSheet } from "@/components/brief-sheet";
+import type { StructuredBrief } from "@/lib/brief";
 
 export function ProjectEditor({
   projectId,
   title,
   summary,
   brief,
+  briefStructured,
   canWrite,
 }: {
   projectId: string;
   title: string;
   summary: string | null;
   brief: string | null;
+  briefStructured: StructuredBrief | null;
   canWrite: boolean;
 }) {
   const router = useRouter();
@@ -28,7 +32,7 @@ export function ProjectEditor({
   const [b, setB] = useState(brief ?? "");
   const [polishing, setPolishing] = useState(false);
 
-  async function polish() {
+  async function polish(raw: string) {
     if (polishing) return;
     setError(null);
     setPolishing(true);
@@ -36,15 +40,19 @@ export function ProjectEditor({
       const res = await fetch("/api/polish-brief", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId, raw: b }),
+        body: JSON.stringify({ projectId, raw }),
       });
       const data = (await res.json()) as {
         brief?: string;
+        structured?: StructuredBrief;
         error?: string;
       };
       if (!res.ok || !data.brief)
         throw new Error(data.error || "Couldn't polish that");
       setB(data.brief);
+      // The route persisted both brief + briefStructured in one call —
+      // refresh so the closed view picks up the new spec-sheet render.
+      router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -82,6 +90,8 @@ export function ProjectEditor({
   }
 
   if (!open) {
+    const hasBriefText = !!(brief && brief.trim());
+    const formatLabel = briefStructured ? "Re-format" : "Format";
     return (
       <div className="w-full">
         <div className="flex items-start justify-between gap-4">
@@ -89,19 +99,46 @@ export function ProjectEditor({
             The Foreman reads this on every task
           </span>
           {canWrite && (
-            <button
-              type="button"
-              onClick={() => {
-                reset();
-                setOpen(true);
-              }}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line-strong px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-brass hover:text-brass"
-            >
-              <Pencil className="size-3.5" /> Edit
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              {hasBriefText && (
+                <button
+                  type="button"
+                  onClick={() => polish(brief!)}
+                  disabled={polishing}
+                  title="Re-run the polish on this brief"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-blueprint/40 bg-blueprint-tint px-2.5 py-1.5 text-xs font-medium text-blueprint transition-colors hover:border-blueprint disabled:opacity-50"
+                >
+                  {polishing ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      Formatting…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-3.5" /> {formatLabel}
+                    </>
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  reset();
+                  setOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-line-strong px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-brass hover:text-brass"
+              >
+                <Pencil className="size-3.5" /> Edit
+              </button>
+            </div>
           )}
         </div>
-        {brief && brief.trim() ? (
+        {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+        {briefStructured ? (
+          <div className="mt-5">
+            <BriefSheet brief={briefStructured} />
+          </div>
+        ) : brief && brief.trim() ? (
           <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-ink-soft">
             {brief}
           </p>
@@ -174,7 +211,7 @@ export function ProjectEditor({
       <div className="mt-2 flex items-center gap-3">
         <button
           type="button"
-          onClick={polish}
+          onClick={() => polish(b)}
           disabled={polishing || b.trim().length < 8}
           className="inline-flex items-center gap-1.5 rounded-md border border-blueprint/40 bg-blueprint-tint px-2.5 py-1.5 text-xs font-medium text-blueprint transition-colors hover:border-blueprint disabled:opacity-50"
         >

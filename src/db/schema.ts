@@ -146,8 +146,16 @@ export const projects = pgTable(
     /** Short tagline shown on cards. */
     summary: text("summary"),
     /** Long-form ground truth the Foreman reads in every conversation
-     *  (e.g. "walls are plaster not drywall, 1920s house, no garage"). */
+     *  (e.g. "walls are plaster not drywall, 1920s house, no garage").
+     *  Plain-text fallback — kept in sync with briefStructured and consumed
+     *  by the Foreman system prompt unchanged. */
     brief: text("brief"),
+    /** Editorial spec-sheet brief. Shape lives in src/lib/brief.ts as
+     *  StructuredBrief / structuredBriefSchema (Zod). Nullable until a brief
+     *  is polished — the UI falls back to rendering `brief` plain text. */
+    briefStructured: jsonb("brief_structured").$type<
+      import("@/lib/brief").StructuredBrief
+    >(),
     createdAt: now(),
     updatedAt: now(),
   },
