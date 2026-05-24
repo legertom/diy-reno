@@ -102,6 +102,7 @@ export function TaskChat({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [recording, setRecording] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -199,6 +200,7 @@ export function TaskChat({
   async function onPickFiles(files: FileList | null) {
     if (!files?.length) return;
     setUploading(true);
+    setUploadError(null);
     try {
       const next: Attachment[] = [];
       for (const file of Array.from(files)) {
@@ -214,8 +216,8 @@ export function TaskChat({
         next.push({ url: blob.url, mediaType: file.type || guessType(blob.url) });
       }
       setAttachments((a) => [...a, ...next]);
-    } catch {
-      /* surfaced by disabled state; keep UI simple */
+    } catch (e) {
+      setUploadError((e as Error).message || "Couldn’t attach that photo.");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -439,6 +441,12 @@ export function TaskChat({
             </div>
           ))}
         </div>
+      )}
+
+      {uploadError && (
+        <p className="mt-2 text-xs text-danger" role="alert">
+          {uploadError}
+        </p>
       )}
 
       <form onSubmit={submit} className="mt-3 flex items-end gap-2">
