@@ -355,6 +355,12 @@ export type TimelinePhoto = {
   taskId: string | null;
   taskNum: string | null;
   taskTitle: string | null;
+  /** Phase 5.3 passive AI outputs. Null when vision hasn't run yet. */
+  captionAi: string | null;
+  tags: string[] | null;
+  rois: import("@/lib/photo-vision-types").PhotoROI[] | null;
+  safetyFlags: import("@/lib/photo-vision-types").PhotoSafetyFlag[] | null;
+  visionCompletedAt: Date | null;
 };
 
 /** Project photo timeline + the chooser data the lightbox needs (rooms
@@ -405,6 +411,11 @@ export async function getProjectTimeline(projectId: string): Promise<{
       taskId: p.taskId,
       taskNum: t?.num ?? null,
       taskTitle: t?.title ?? null,
+      captionAi: p.captionAi,
+      tags: p.tags,
+      rois: p.rois,
+      safetyFlags: p.safetyFlags,
+      visionCompletedAt: p.visionCompletedAt,
     };
   });
 

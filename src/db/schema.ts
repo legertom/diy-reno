@@ -366,6 +366,26 @@ export const photos = pgTable(
     /** Manual reorder position. Existing rows default to 0; timeline
      *  secondary-sorts by takenAt then createdAt. */
     position: integer("position").notNull().default(0),
+    /** Phase 5.3 passive AI. All five outputs of the single Gemini
+     *  Flash vision call cache here so spend is bounded to once per
+     *  upload. Nullable until the vision job completes. Types live in
+     *  src/lib/photo-vision-types.ts. */
+    captionAi: text("caption_ai"),
+    tags: jsonb("tags").$type<string[]>(),
+    embedding: jsonb("embedding").$type<number[]>(),
+    rois: jsonb("rois").$type<
+      import("@/lib/photo-vision-types").PhotoROI[]
+    >(),
+    safetyFlags: jsonb("safety_flags").$type<
+      import("@/lib/photo-vision-types").PhotoSafetyFlag[]
+    >(),
+    /** Null = vision not yet run; non-null = success at this time. */
+    visionCompletedAt: timestamp("vision_completed_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
+    /** Last error if the vision call failed. Lets retries learn. */
+    visionError: text("vision_error"),
     createdAt: now(),
   },
   (p) => [
