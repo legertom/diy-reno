@@ -7,11 +7,39 @@ import { TaskChat } from "@/components/task/task-chat";
 
 type Project = { id: string; title: string };
 type Loaded = { pid: string; msgs: UIMessage[] };
+type PendingAttach = { url: string; mediaType?: string };
+
+/** Cross-component "open the Foreman bubble" signal. Fired by the
+ *  lightbox's "Ask the Foreman" button (Phase 5.6) so the user can
+ *  drop a photo into the chat from anywhere it surfaces. Detail
+ *  optionally pre-selects a project id and pre-seeds the attachment
+ *  tray (avoids the timing race between bubble-open and a separate
+ *  ATTACH_EVENT). */
+export const OPEN_FOREMAN_EVENT = "reno:open-foreman";
 
 export function ForemanBubble({ projects }: { projects: Project[] }) {
   const [open, setOpen] = useState(false);
   const [pid, setPid] = useState(projects[0]?.id ?? "");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [pendingAttach, setPendingAttach] = useState<PendingAttach | null>(
+    null,
+  );
+
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (
+        e as CustomEvent<{
+          projectId?: string;
+          attach?: PendingAttach;
+        }>
+      ).detail;
+      if (detail?.projectId) setPid(detail.projectId);
+      if (detail?.attach) setPendingAttach(detail.attach);
+      setOpen(true);
+    }
+    window.addEventListener(OPEN_FOREMAN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_FOREMAN_EVENT, onOpen);
+  }, []);
 
   useEffect(() => {
     if (!open || !pid) return;
@@ -30,6 +58,14 @@ export function ForemanBubble({ projects }: { projects: Project[] }) {
   }, [open, pid]);
 
   if (projects.length === 0) return null;
+
+  function guessImageMediaType(url: string): string {
+    const u = url.toLowerCase();
+    if (u.includes(".png")) return "image/png";
+    if (u.includes(".webp")) return "image/webp";
+    if (u.includes(".gif")) return "image/gif";
+    return "image/jpeg";
+  }
 
   // Persistent, prominent, bottom-anchored surface — the coach is the
   // product thesis, not a corner afterthought (PLAN §3.4). Full-width dock
@@ -112,10 +148,21 @@ export function ForemanBubble({ projects }: { projects: Project[] }) {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           {ready ? (
             <TaskChat
-              key={pid}
+              key={pid + (pendingAttach?.url ?? "")}
               projectId={pid}
               taskId={null}
               initialMessages={loaded.msgs}
+              initialAttachments={
+                pendingAttach && loaded.pid === pid
+                  ? [
+                      {
+                        url: pendingAttach.url,
+                        mediaType:
+                          pendingAttach.mediaType ?? guessImageMediaType(pendingAttach.url),
+                      },
+                    ]
+                  : undefined
+              }
             />
           ) : (
             <div className="grid h-full place-items-center text-ink-faint">
