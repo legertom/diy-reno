@@ -20,9 +20,33 @@ import {
 import { TaskRow, type RowTask } from "@/components/task-row";
 import { ProjectEditor } from "@/components/project-editor";
 import { PhotoCameraButton } from "@/components/photo-timeline";
+import { DreamHero } from "@/components/dream-hero";
 
 const stripNo = (s: string) =>
   s.replace(/^\s*\d+(\.\d+)?\s*[—.)\-:]?\s*/i, "").trim() || s;
+
+/** The single Foreman line beneath the dream image. Warm and forward-
+ *  looking; never a countdown, never a guilt trip. Anxiety-aware per
+ *  feedback_dates_anxiety.md — dates are out of scope here on purpose. */
+function composeForemanLine(input: {
+  nextUpTitle: string | null;
+  nextUpPhase: string | null;
+  hasDream: boolean;
+  total: number;
+}): string {
+  if (!input.hasDream) {
+    if (input.total === 0) return "The Foreman is ready when you are.";
+    return "Every photo, every task — built toward this.";
+  }
+  if (input.nextUpTitle && input.nextUpPhase) {
+    const phase = stripNo(input.nextUpPhase).toLowerCase();
+    return `One ${phase} day brings you closer to this.`;
+  }
+  if (input.total === 0) {
+    return "This is where you're going.";
+  }
+  return "Every photo, every task — built toward this.";
+}
 
 function toRow(t: TaskWithGuide): RowTask {
   return {
@@ -58,12 +82,29 @@ export default async function ProjectPage({
   const nextUp = computeNextUp(board);
   const { done, total } = board.progress;
 
+  const foremanLine = composeForemanLine({
+    nextUpTitle: nextUp?.task.title ?? null,
+    nextUpPhase: nextUp?.phaseName ?? null,
+    hasDream: Boolean(project.dreamImageUrl),
+    total,
+  });
+
   return (
     <>
       <AppHeader user={user} crumb={{ href: "/", label: "Projects" }} />
-      <main className="mx-auto max-w-5xl px-5 pt-12 pb-32 sm:px-8 sm:pt-16">
-        {/* Editorial title block */}
-        <header className="flex items-start justify-between gap-6">
+      <main className="mx-auto max-w-5xl px-5 pt-6 pb-32 sm:px-8 sm:pt-8">
+        {/* The dream — the post-Phase-5.2 headline. */}
+        <DreamHero
+          projectId={projectId}
+          imageUrl={project.dreamImageUrl}
+          prompt={project.dreamPrompt}
+          renderedAt={project.dreamRenderedAt}
+          canWrite={writable}
+          foremanLine={foremanLine}
+        />
+
+        {/* Editorial title block — demoted below the dream. */}
+        <header className="mt-12 flex items-start justify-between gap-6">
           <div className="min-w-0">
             <Eyebrow>
               {role === "owner" ? "Lead builder" : `Shared · ${role}`}

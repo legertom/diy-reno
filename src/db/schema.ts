@@ -156,6 +156,28 @@ export const projects = pgTable(
     briefStructured: jsonb("brief_structured").$type<
       import("@/lib/brief").StructuredBrief
     >(),
+    /** Phase 5.2: the structured choices that produce the dream hero
+     *  image (palette + finishes + vibe + reference images). Shape lives
+     *  in src/lib/style-profile.ts. */
+    styleProfile: jsonb("style_profile").$type<
+      import("@/lib/style-profile").StyleProfile
+    >(),
+    /** Cached dream-hero image URL (public Blob asset). Generated once
+     *  per major decision, served from CDN at zero AI spend per view. */
+    dreamImageUrl: text("dream_image_url"),
+    /** Blob pathname kept alongside the URL so the old asset can be
+     *  del()'d when a re-render replaces it (Blob has no orphan
+     *  cleanup). */
+    dreamPathname: text("dream_pathname"),
+    /** The exact prompt that produced the cached image — drives the
+     *  "why this image?" panel. */
+    dreamPrompt: text("dream_prompt"),
+    /** When the cached image was rendered. Used by the dreamTriggers
+     *  cooldown so the dream doesn't flicker on rapid edits. */
+    dreamRenderedAt: timestamp("dream_rendered_at", {
+      mode: "date",
+      withTimezone: true,
+    }),
     createdAt: now(),
     updatedAt: now(),
   },

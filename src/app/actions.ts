@@ -670,6 +670,66 @@ export async function resetForemanThread(
   revalidatePath(`/p/${projectId}/foreman`);
 }
 
+/* ---------------------------------- dream ------------------------------ */
+
+/** Manual "update my dream" trigger. The other two dreamTriggers (style-
+ *  profile field change, reference image add/remove) write the style
+ *  profile via updateStyleProfile below and call this on success — the
+ *  detection rule stays "explicit observable user action" per
+ *  PHOTO_PLAN.md §5 Q3. Throws to surface errors to the caller. */
+export async function regenerateDream(projectId: string) {
+  await assertCanWrite(projectId);
+  const { renderDreamHero } = await import("@/lib/dream");
+  const result = await renderDreamHero(projectId);
+  revalidateProject(projectId);
+  return result;
+}
+
+/** Patch the project's styleProfile. Triggers a dream re-render only
+ *  when the new shape differs in a render-affecting way (see
+ *  styleProfileTriggersRerender). Cooldown is honored so the dream
+ *  doesn't flicker on rapid intake edits. */
+export async function updateStyleProfile(input: {
+  projectId: string;
+  styleProfile: import("@/lib/style-profile").StyleProfile;
+}) {
+  await assertCanWrite(input.projectId);
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, input.projectId));
+  if (!row) return;
+
+  const {
+    styleProfileSchema,
+    styleProfileTriggersRerender,
+  } = await import("@/lib/style-profile");
+  const parsed = styleProfileSchema.parse(input.styleProfile);
+  const before = (row.styleProfile as
+    | import("@/lib/style-profile").StyleProfile
+    | null) ?? null;
+
+  await db
+    .update(projects)
+    .set({ styleProfile: parsed })
+    .where(eq(projects.id, input.projectId));
+
+  const shouldRerender = styleProfileTriggersRerender(before, parsed);
+  if (shouldRerender) {
+    const { dreamIsInCooldown, renderDreamHero } = await import("@/lib/dream");
+    if (!dreamIsInCooldown(row)) {
+      try {
+        await renderDreamHero(input.projectId);
+      } catch (e) {
+        console.error("[dream] auto re-render after styleProfile failed:", e);
+      }
+    }
+  }
+
+  revalidateProject(input.projectId);
+}
+
 /** Testing tool: wipe everything this user owns (projects + cascades,
  *  properties, foreman memory, tools, invitee memberships) plus the blobs
  *  backing their photos (Vercel Blob has no orphan/cleanup so we must
@@ -687,12 +747,22 @@ export async function resetAccount(formData: FormData) {
   const db = getDb();
 
   // Collect blob pathnames before the cascade drops the photo rows.
-  const photoRows = await db
-    .select({ pathname: photos.pathname })
-    .from(photos)
-    .innerJoin(projects, eq(photos.projectId, projects.id))
-    .where(eq(projects.ownerId, user.id));
-  const pathnames = photoRows.map((p) => p.pathname).filter(Boolean);
+  // Includes user photos AND cached dream-hero images on their projects.
+  const [photoRows, dreamRows] = await Promise.all([
+    db
+      .select({ pathname: photos.pathname })
+      .from(photos)
+      .innerJoin(projects, eq(photos.projectId, projects.id))
+      .where(eq(projects.ownerId, user.id)),
+    db
+      .select({ pathname: projects.dreamPathname })
+      .from(projects)
+      .where(eq(projects.ownerId, user.id)),
+  ]);
+  const pathnames = [
+    ...photoRows.map((p) => p.pathname),
+    ...dreamRows.map((d) => d.pathname),
+  ].filter((p): p is string => Boolean(p));
   if (pathnames.length) {
     try {
       await del(pathnames);
