@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 import { Eyebrow } from "@/components/ui";
+import DevLoginForm from "./dev-login-form";
 
 export default async function SignInPage() {
   const session = await auth();
@@ -42,6 +43,10 @@ export default async function SignInPage() {
         <p className="mt-7 text-center text-[11px] font-semibold tracking-[0.16em] text-ink-faint uppercase">
           Free · Your plans, your collaborators
         </p>
+
+        {process.env.NEXT_PUBLIC_DEV_LOGIN === "true" && (
+          <DevLoginForm />
+        )}
       </div>
     </main>
   );
