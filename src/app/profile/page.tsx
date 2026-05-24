@@ -2,6 +2,7 @@ import { requireUser, getUserTools } from "@/lib/projects";
 import { AppHeader } from "@/components/app-header";
 import { Card, Eyebrow, SectionHeader } from "@/components/ui";
 import { ToolsManager } from "@/components/tools-manager";
+import { ResetAccountForm } from "@/components/reset-account-form";
 
 export default async function ProfilePage() {
   const user = await requireUser();
@@ -32,6 +33,23 @@ export default async function ProfilePage() {
             />
           </Card>
         </section>
+
+        {user.email && (
+          <section className="mt-20 sm:mt-28">
+            <SectionHeader index="02" label="Testing" className="mb-4" />
+            <Card frame className="mt-6 p-5 sm:p-6">
+              <p className="text-sm text-ink-soft">
+                Wipe every project, property, photo, chat, and Foreman memory
+                on this account, then start over from the empty-state
+                dashboard. Use this to re-run intake on a clean slate. The
+                account itself stays signed in. Irreversible.
+              </p>
+              <div className="mt-5">
+                <ResetAccountForm email={user.email} />
+              </div>
+            </Card>
+          </section>
+        )}
       </main>
     </>
   );

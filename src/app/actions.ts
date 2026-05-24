@@ -18,6 +18,7 @@ import {
   userTools,
   chatMessages,
   chatThreads,
+  foremanMemories,
 } from "@/db/schema";
 import {
   assertCanWrite,
@@ -560,4 +561,52 @@ export async function resetForemanThread(
   if (taskId) revalidatePath(`/p/${projectId}/t/${taskId}`);
   revalidatePath(`/p/${projectId}`);
   revalidatePath(`/p/${projectId}/foreman`);
+}
+
+/** Testing tool: wipe everything this user owns (projects + cascades,
+ *  properties, foreman memory, tools, invitee memberships) plus the blobs
+ *  backing their photos (Vercel Blob has no orphan/cleanup so we must
+ *  `del()` them explicitly or they accumulate forever). Keeps the
+ *  user/session row so the account stays signed in; redirects to the
+ *  empty-state dashboard so the next intake starts clean.
+ *  Guarded by an exact-email confirmation in the form (re-checked here). */
+export async function resetAccount(formData: FormData) {
+  const user = await requireUser();
+  const confirm = String(formData.get("confirm") || "").trim().toLowerCase();
+  const expected = (user.email ?? "").trim().toLowerCase();
+  if (!expected || confirm !== expected) {
+    throw new Error("Confirmation email did not match");
+  }
+  const db = getDb();
+
+  // Collect blob pathnames before the cascade drops the photo rows.
+  const photoRows = await db
+    .select({ pathname: photos.pathname })
+    .from(photos)
+    .innerJoin(projects, eq(photos.projectId, projects.id))
+    .where(eq(projects.ownerId, user.id));
+  const pathnames = photoRows.map((p) => p.pathname).filter(Boolean);
+  if (pathnames.length) {
+    try {
+      await del(pathnames);
+    } catch (e) {
+      // DB is the source of truth; a blob failure leaks bytes but the app
+      // still ends up in a consistent reset state.
+      console.error("[reset] blob delete failed:", e);
+    }
+  }
+
+  // Project delete cascades to phases / tasks / photos / notes / shopping /
+  // time_logs / chat_messages / chat_threads / project_members on those
+  // projects. The follow-up deletes cover everything user-scoped that
+  // doesn't cascade from project deletion (and invitee rows on OTHER users'
+  // projects, which we don't want to leave dangling).
+  await db.delete(projects).where(eq(projects.ownerId, user.id));
+  await db.delete(properties).where(eq(properties.ownerId, user.id));
+  await db.delete(foremanMemories).where(eq(foremanMemories.userId, user.id));
+  await db.delete(userTools).where(eq(userTools.userId, user.id));
+  await db.delete(projectMembers).where(eq(projectMembers.userId, user.id));
+
+  revalidatePath("/");
+  redirect("/");
 }
