@@ -160,13 +160,19 @@ The image evolves with their decisions, never with their guilt.
 
 ### 5.3  Passive AI — captions, tags, OCR, safety
 
+> ✓ **5.3 shipped** — pending merge (PR #2 stacked, 2026-05-24).
+> Core vision pass in: caption, tags, ROIs (5.4 substrate), safety
+> flags. Receipt mode + "What is this?" long-press remain as
+> follow-ups. Embedding column is in the schema but unpopulated
+> until 5.7 consumes it.
+
 The intelligence the user never asks for. Ships in parallel with 5.2
 because it is the substrate for everything from 5.6 onward. **Provider:
 Gemini Flash via Vercel AI Gateway (locked, §5).**
 
-- [ ] Vision → short factual auto-caption ("North wall, drywall
+- [x] Vision → short factual auto-caption ("North wall, drywall
       removed")
-- [ ] Vision → tags: room kind, surface, materials, tools, phase
+- [x] Vision → tags: room kind, surface, materials, tools, phase
 - [ ] Vision embeddings cached on the row — feeds 5.7
 - [ ] **Receipt mode** — when a photo *is* a receipt, extract line
       items + total. Lines with confidence ≥ 0.85 auto-accept; below,
@@ -174,7 +180,7 @@ Gemini Flash via Vercel AI Gateway (locked, §5).**
 - [ ] **"What is this?"** — long-press → vision identifies the object
       + brief context. Direct extension of the existing
       `identify-tools` pattern.
-- [ ] **Safety flags** — vision quietly flags electrical, structural,
+- [x] **Safety flags** — vision quietly flags electrical, structural,
       mold, asbestos, code-violation cues with a "stop, call a pro"
       overlay. Quiet but firm; credibility comes from the no's.
 
@@ -183,26 +189,32 @@ cost. Receipts stop being a chore. Dangerous work gets a no.
 
 ### 5.4  Smart crops & details — what the Foreman noticed
 
+> ✓ **5.4 shipped (substrate)** — pending merge (PR #2 stacked,
+> 2026-05-24). ROI bbox + category + caption land on the row via
+> the same 5.3 vision call. Detail strip renders as CSS
+> object-position crops in the lightbox. Per-ROI embedding + per-
+> ROI Foreman thread remain as follow-ups (need 5.6 thread infra).
+
 The same vision pass that captioned and tagged the photo in 5.3 also
 returns 3–5 **regions of interest** with category labels. The Foreman
 volunteers them — "I noticed these…" — instead of waiting for the user
 to point. Cheap (same vision call, just extended), and compounds into
 5.5, 5.7, 5.9, 5.13.
 
-- [ ] Vision returns ROI bounding boxes + category per photo on
+- [x] Vision returns ROI bounding boxes + category per photo on
       upload, in the same call as 5.3's captions / tags / embeddings
-- [ ] Categories: **defect, transition, progress, moment, safety**
-- [ ] **Detail strip** beneath the full photo — 3–5 cropped thumbnails,
+- [x] Categories: **defect, transition, progress, moment, safety**
+- [x] **Detail strip** beneath the full photo — 3–5 cropped thumbnails,
       each with a one-line "what Foreman saw" caption
-- [ ] Crops are CSS `object-position` overlays on the source image;
+- [x] Crops are CSS `object-position` overlays on the source image;
       **no extra Blob writes**
 - [ ] Each ROI gets its own embedding (feeds 5.7 same-angle pairing at
       region level — not only whole-image matching)
 - [ ] Optional **per-ROI Foreman thread** — finer grain than 5.6's
       per-photo thread. "Ask about this corner."
-- [ ] Storage: JSON column on `photo` (`rois: { id, bbox, category,
+- [x] Storage: JSON column on `photo` (`rois: { id, bbox, category,
       caption, embedding }[]`). Migrate to table later if usage grows.
-- [ ] Threshold conservative — false negatives over false positives.
+- [x] Threshold conservative — false negatives over false positives.
       A wrong ROI is worse than no ROI.
 
 Exit: every uploaded photo arrives with a "Foreman noticed these…"

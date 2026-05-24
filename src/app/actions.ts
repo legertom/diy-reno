@@ -3,6 +3,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { del } from "@vercel/blob";
 import { getDb } from "@/db";
 import {
@@ -400,21 +401,42 @@ export async function registerPhoto(input: {
     input.orientation <= 8
       ? input.orientation
       : null;
-  await db.insert(photos).values({
-    projectId: input.projectId,
-    taskId: input.taskId ?? null,
-    uploaderId: user.id,
-    url: input.url,
-    pathname: input.pathname,
-    caption: input.caption?.trim() || null,
-    takenAt: input.takenAt ?? null,
-    orientation,
-    roomName: input.roomName?.trim() || null,
-  });
+  const [inserted] = await db
+    .insert(photos)
+    .values({
+      projectId: input.projectId,
+      taskId: input.taskId ?? null,
+      uploaderId: user.id,
+      url: input.url,
+      pathname: input.pathname,
+      caption: input.caption?.trim() || null,
+      takenAt: input.takenAt ?? null,
+      orientation,
+      roomName: input.roomName?.trim() || null,
+    })
+    .returning({ id: photos.id });
   revalidateProject(input.projectId);
   if (input.taskId)
     revalidatePath(`/p/${input.projectId}/t/${input.taskId}`);
   revalidatePath(`/p/${input.projectId}/photos`);
+
+  // Kick off the passive vision pass after the response (the upload UX
+  // isn't blocked on the AI call). PHOTO_PLAN §5.3 — caption / tags /
+  // ROIs / safety flags cached on the row, once per upload.
+  if (inserted?.id) {
+    const photoId = inserted.id;
+    const projectId = input.projectId;
+    after(async () => {
+      try {
+        const { runVisionOnPhoto } = await import("@/lib/photo-vision");
+        await runVisionOnPhoto(photoId);
+        revalidatePath(`/p/${projectId}`);
+        revalidatePath(`/p/${projectId}/photos`);
+      } catch (e) {
+        console.error("[vision] runVisionOnPhoto failed:", e);
+      }
+    });
+  }
 }
 
 export async function deletePhoto(id: string) {

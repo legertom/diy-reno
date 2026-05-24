@@ -43,6 +43,13 @@
       "when": 1779654318532,
       "tag": "0005_project_dream_hero",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779654882597,
+      "tag": "0006_photo_passive_vision",
+      "breakpoints": true
     }
   ]
 }

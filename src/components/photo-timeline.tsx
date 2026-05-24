@@ -273,9 +273,23 @@ function LightboxMeta({
 
         {!editing ? (
           <>
+            <SafetyOverlay flags={photo.safetyFlags} />
             <p className="min-h-6 text-base">
-              {photo.caption ?? (
-                <span className="opacity-50">No caption</span>
+              {photo.caption ? (
+                photo.caption
+              ) : photo.captionAi ? (
+                <>
+                  <span className="mr-2 align-middle text-[10px] font-semibold tracking-[0.16em] uppercase opacity-50">
+                    Foreman
+                  </span>
+                  {photo.captionAi}
+                </>
+              ) : (
+                <span className="opacity-50">
+                  {photo.visionCompletedAt
+                    ? "No caption"
+                    : "Foreman is looking at this…"}
+                </span>
               )}
             </p>
             <div className="flex flex-wrap items-center gap-2 text-[12px]">
@@ -293,7 +307,16 @@ function LightboxMeta({
                   {linkedTask.title}
                 </Link>
               )}
+              {photo.tags?.slice(0, 6).map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] opacity-80"
+                >
+                  #{t}
+                </span>
+              ))}
             </div>
+            <ROIStrip photo={photo} />
 
             {canWrite && (
               <div className="mt-2 flex items-center gap-2">
@@ -440,6 +463,85 @@ function LightboxMeta({
             </div>
           </form>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** "Stop, call a pro" overlay — the most important Foreman voice
+ *  surface in the lightbox. Quiet but firm. Only renders the highest-
+ *  severity flag in the row to avoid panic. */
+function SafetyOverlay({
+  flags,
+}: {
+  flags: import("@/lib/photo-vision-types").PhotoSafetyFlag[] | null;
+}) {
+  if (!flags || flags.length === 0) return null;
+  const ordered = [...flags].sort(
+    (a, b) =>
+      severityWeight(b.severity) - severityWeight(a.severity),
+  );
+  const top = ordered[0];
+  if (top.severity === "info") return null;
+  const tone =
+    top.severity === "stop"
+      ? "border-red-400/60 bg-red-500/15 text-red-100"
+      : "border-amber-400/50 bg-amber-500/10 text-amber-100";
+  return (
+    <div
+      className={`rounded-lg border px-3 py-2 text-sm ${tone}`}
+      role="alert"
+    >
+      <span className="mr-2 align-middle text-[10px] font-semibold tracking-[0.16em] uppercase opacity-80">
+        {top.severity === "stop" ? "Stop · call a pro" : "Heads up"}
+        {" · "}
+        {top.kind}
+      </span>
+      <span>{top.detail}</span>
+      {top.recommendation && (
+        <span className="mt-1 block text-[12px] opacity-90">
+          {top.recommendation}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function severityWeight(s: "info" | "warn" | "stop"): number {
+  return s === "stop" ? 3 : s === "warn" ? 2 : 1;
+}
+
+/** "Foreman noticed these…" — the 5.4 detail strip. Each ROI is a CSS
+ *  object-position crop on the source image (no extra Blob writes). */
+function ROIStrip({ photo }: { photo: TimelinePhoto }) {
+  if (!photo.rois || photo.rois.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 text-[10px] font-semibold tracking-[0.18em] uppercase opacity-60">
+        Foreman noticed
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {photo.rois.map((roi) => (
+          <div
+            key={roi.id}
+            className="w-32 shrink-0 space-y-1.5"
+            title={roi.caption}
+          >
+            <div
+              className="relative aspect-square overflow-hidden rounded-md border border-white/15 bg-white/5"
+              style={{
+                backgroundImage: `url(${photo.url})`,
+                backgroundSize: `${(1 / Math.max(roi.bbox.w, 0.05)) * 100}% ${(1 / Math.max(roi.bbox.h, 0.05)) * 100}%`,
+                backgroundPosition: `${(roi.bbox.x / Math.max(1 - roi.bbox.w, 0.05)) * 100}% ${(roi.bbox.y / Math.max(1 - roi.bbox.h, 0.05)) * 100}%`,
+                backgroundRepeat: "no-repeat",
+              }}
+            />
+            <div className="text-[10px] leading-snug opacity-80">
+              <span className="mr-1 opacity-60">{roi.category}</span>
+              {roi.caption}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
