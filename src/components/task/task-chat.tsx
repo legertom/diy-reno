@@ -77,6 +77,7 @@ const TOOL_LABELS: Record<string, string> = {
   "tool-remember": "Saved to memory",
   "tool-forget": "Updated memory",
   "tool-setPropertyDetails": "Saved the place",
+  "tool-setStyleProfile": "Saved your style — re-rendering your dream",
 };
 
 export function TaskChat({
