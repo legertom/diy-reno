@@ -335,7 +335,84 @@ export async function getProjectPhotos(projectId: string) {
     .select()
     .from(photos)
     .where(eq(photos.projectId, projectId))
-    .orderBy(desc(photos.createdAt));
+    .orderBy(
+      asc(photos.position),
+      desc(photos.takenAt),
+      desc(photos.createdAt),
+    );
+}
+
+export type TimelinePhoto = {
+  id: string;
+  url: string;
+  pathname: string;
+  caption: string | null;
+  takenAt: Date | null;
+  orientation: number | null;
+  roomName: string | null;
+  position: number;
+  createdAt: Date;
+  taskId: string | null;
+  taskNum: string | null;
+  taskTitle: string | null;
+};
+
+/** Project photo timeline + the chooser data the lightbox needs (rooms
+ *  from the project's Property; tasks from the project board). One round
+ *  trip; no joins on the photos query itself so adding columns stays
+ *  cheap. */
+export async function getProjectTimeline(projectId: string): Promise<{
+  photos: TimelinePhoto[];
+  rooms: string[];
+  tasks: { id: string; num: string; title: string }[];
+}> {
+  const db = getDb();
+  const [photoRows, taskRows, propertyRow] = await Promise.all([
+    db
+      .select()
+      .from(photos)
+      .where(eq(photos.projectId, projectId))
+      .orderBy(
+        asc(photos.position),
+        desc(photos.takenAt),
+        desc(photos.createdAt),
+      ),
+    db
+      .select({ id: tasks.id, num: tasks.num, title: tasks.title })
+      .from(tasks)
+      .where(eq(tasks.projectId, projectId))
+      .orderBy(asc(tasks.position)),
+    db
+      .select({ rooms: properties.rooms })
+      .from(properties)
+      .innerJoin(projects, eq(projects.propertyId, properties.id))
+      .where(eq(projects.id, projectId)),
+  ]);
+
+  const taskById = new Map(taskRows.map((t) => [t.id, t]));
+  const timeline: TimelinePhoto[] = photoRows.map((p) => {
+    const t = p.taskId ? taskById.get(p.taskId) : null;
+    return {
+      id: p.id,
+      url: p.url,
+      pathname: p.pathname,
+      caption: p.caption,
+      takenAt: p.takenAt,
+      orientation: p.orientation,
+      roomName: p.roomName,
+      position: p.position,
+      createdAt: p.createdAt,
+      taskId: p.taskId,
+      taskNum: t?.num ?? null,
+      taskTitle: t?.title ?? null,
+    };
+  });
+
+  const rooms = (propertyRow[0]?.rooms ?? [])
+    .map((r) => r.name)
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+
+  return { photos: timeline, rooms, tasks: taskRows };
 }
 
 export async function getUserTools(userId: string) {

@@ -1,5 +1,6 @@
 import { upload } from "@vercel/blob/client";
 import { registerPhoto } from "@/app/actions";
+import { readPhotoExif } from "@/lib/photo-exif";
 
 /**
  * Upload a photo to Vercel Blob AND register it as a project photo in one
@@ -17,8 +18,13 @@ export async function uploadProjectPhoto(args: {
   taskId: string | null;
   /** Subfolder of `projects/<projectId>/` in Blob. e.g. "chat" or a taskId. */
   pathPrefix: string;
+  /** Optional room reference (must match a room name on the project's
+   *  Property; the UI constrains this). Free-text by design — see
+   *  schema.ts photo.roomName note. */
+  roomName?: string | null;
 }): Promise<{ url: string; pathname: string; mediaType: string }> {
-  const { file, projectId, taskId, pathPrefix } = args;
+  const { file, projectId, taskId, pathPrefix, roomName } = args;
+  const exif = await readPhotoExif(file);
   const blob = await upload(
     `projects/${projectId}/${pathPrefix}/${file.name}`,
     file,
@@ -33,6 +39,9 @@ export async function uploadProjectPhoto(args: {
     taskId,
     url: blob.url,
     pathname: blob.pathname,
+    takenAt: exif.takenAt,
+    orientation: exif.orientation,
+    roomName: roomName ?? null,
   });
   return {
     url: blob.url,

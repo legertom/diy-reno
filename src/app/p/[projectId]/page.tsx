@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { TaskRow, type RowTask } from "@/components/task-row";
 import { ProjectEditor } from "@/components/project-editor";
+import { PhotoCameraButton } from "@/components/photo-timeline";
 
 const stripNo = (s: string) =>
   s.replace(/^\s*\d+(\.\d+)?\s*[—.)\-:]?\s*/i, "").trim() || s;
@@ -170,38 +171,52 @@ export default async function ProjectPage({
           </Link>
         )}
 
-        {photos.length > 0 && (
-          <section className="mt-16">
-            <SectionHeader index="02" label="Photos" />
-            <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
-              {photos.slice(0, 12).map((p) => {
-                const thumb = (
-                  <div className="relative aspect-square overflow-hidden rounded-lg border border-line bg-paper-2">
-                    <Image
-                      src={p.url}
-                      alt={p.caption ?? "Project photo"}
-                      fill
-                      sizes="(max-width: 640px) 33vw, 25vw"
-                      className="object-cover"
-                    />
-                  </div>
-                );
-                return p.taskId ? (
-                  <Link key={p.id} href={`/p/${projectId}/t/${p.taskId}`}>
-                    {thumb}
-                  </Link>
-                ) : (
-                  <div key={p.id}>{thumb}</div>
-                );
-              })}
-            </div>
-            {photos.length > 12 && (
-              <p className="mt-3 text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
-                + {photos.length - 12} more
-              </p>
+        <section className="mt-16">
+          <SectionHeader index="02" label="Photos" />
+          <div className="mt-6 flex items-center justify-between gap-3">
+            {writable && (
+              <PhotoCameraButton
+                projectId={projectId}
+                pathPrefix="project"
+              />
             )}
-          </section>
-        )}
+            {photos.length > 0 && (
+              <Link
+                href={`/p/${projectId}/photos`}
+                className="ml-auto text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase transition-colors hover:text-ink"
+              >
+                {photos.length === 1
+                  ? "View timeline"
+                  : `View all ${photos.length}`}
+              </Link>
+            )}
+          </div>
+          {photos.length > 0 ? (
+            <Link
+              href={`/p/${projectId}/photos`}
+              className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3"
+            >
+              {photos.slice(0, 8).map((p) => (
+                <div
+                  key={p.id}
+                  className="relative aspect-square overflow-hidden rounded-lg border border-line bg-paper-2"
+                >
+                  <Image
+                    src={p.url}
+                    alt={p.caption ?? "Project photo"}
+                    fill
+                    sizes="(max-width: 640px) 33vw, 25vw"
+                    className="object-cover"
+                  />
+                </div>
+              ))}
+            </Link>
+          ) : (
+            <p className="mt-4 text-sm text-ink-faint">
+              No photos yet — shoot or upload to start a timeline.
+            </p>
+          )}
+        </section>
 
         <div className="mt-16 space-y-12">
           {board.phases.map((phase, pi) => (

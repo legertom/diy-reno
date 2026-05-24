@@ -384,9 +384,22 @@ export async function registerPhoto(input: {
   url: string;
   pathname: string;
   caption?: string;
+  /** EXIF capture moment, parsed client-side. Null when EXIF is absent. */
+  takenAt?: Date | null;
+  /** EXIF Orientation (1–8). Null when absent or already baked in. */
+  orientation?: number | null;
+  /** Optional room name (must match a room on the project's Property —
+   *  the chooser UI enforces this). Free-text by design. */
+  roomName?: string | null;
 }) {
   const { user } = await assertCanWrite(input.projectId);
   const db = getDb();
+  const orientation =
+    typeof input.orientation === "number" &&
+    input.orientation >= 1 &&
+    input.orientation <= 8
+      ? input.orientation
+      : null;
   await db.insert(photos).values({
     projectId: input.projectId,
     taskId: input.taskId ?? null,
@@ -394,10 +407,14 @@ export async function registerPhoto(input: {
     url: input.url,
     pathname: input.pathname,
     caption: input.caption?.trim() || null,
+    takenAt: input.takenAt ?? null,
+    orientation,
+    roomName: input.roomName?.trim() || null,
   });
   revalidateProject(input.projectId);
   if (input.taskId)
     revalidatePath(`/p/${input.projectId}/t/${input.taskId}`);
+  revalidatePath(`/p/${input.projectId}/photos`);
 }
 
 export async function deletePhoto(id: string) {
@@ -413,6 +430,96 @@ export async function deletePhoto(id: string) {
   await db.delete(photos).where(eq(photos.id, id));
   revalidateProject(photo.projectId);
   if (photo.taskId) revalidatePath(`/p/${photo.projectId}/t/${photo.taskId}`);
+  revalidatePath(`/p/${photo.projectId}/photos`);
+}
+
+/** Update editable photo metadata from the timeline lightbox: caption,
+ *  attached room, attached task. Pass `null` to clear. Omitted fields are
+ *  left alone. */
+export async function updatePhotoMeta(input: {
+  id: string;
+  caption?: string | null;
+  roomName?: string | null;
+  taskId?: string | null;
+}) {
+  const db = getDb();
+  const [photo] = await db.select().from(photos).where(eq(photos.id, input.id));
+  if (!photo) return;
+  await assertCanWrite(photo.projectId);
+
+  const patch: Partial<typeof photos.$inferInsert> = {};
+  if (input.caption !== undefined)
+    patch.caption = input.caption?.trim() || null;
+  if (input.roomName !== undefined)
+    patch.roomName = input.roomName?.trim() || null;
+  if (input.taskId !== undefined) {
+    if (input.taskId === null) {
+      patch.taskId = null;
+    } else {
+      const [t] = await db
+        .select({ id: tasks.id, projectId: tasks.projectId })
+        .from(tasks)
+        .where(eq(tasks.id, input.taskId));
+      if (!t || t.projectId !== photo.projectId)
+        throw new Error("Task not in this project");
+      patch.taskId = t.id;
+    }
+  }
+
+  if (Object.keys(patch).length === 0) return;
+  await db.update(photos).set(patch).where(eq(photos.id, input.id));
+  revalidateProject(photo.projectId);
+  revalidatePath(`/p/${photo.projectId}/photos`);
+  if (photo.taskId) revalidatePath(`/p/${photo.projectId}/t/${photo.taskId}`);
+  if (patch.taskId && patch.taskId !== photo.taskId)
+    revalidatePath(`/p/${photo.projectId}/t/${patch.taskId}`);
+}
+
+/** Reorder a photo within the project's timeline by swapping its position
+ *  with its in-order neighbor. Tie-breaking on takenAt then createdAt
+ *  matches the timeline query in getProjectTimeline. */
+export async function movePhoto(input: {
+  id: string;
+  direction: "up" | "down";
+}) {
+  const db = getDb();
+  const [photo] = await db.select().from(photos).where(eq(photos.id, input.id));
+  if (!photo) return;
+  await assertCanWrite(photo.projectId);
+
+  const all = await db
+    .select()
+    .from(photos)
+    .where(eq(photos.projectId, photo.projectId));
+
+  const ordered = [...all].sort((a, b) => {
+    if (a.position !== b.position) return a.position - b.position;
+    const ta = (a.takenAt ?? a.createdAt).getTime();
+    const tb = (b.takenAt ?? b.createdAt).getTime();
+    if (ta !== tb) return tb - ta;
+    return a.createdAt < b.createdAt ? 1 : -1;
+  });
+
+  const i = ordered.findIndex((p) => p.id === photo.id);
+  if (i < 0) return;
+  const j = input.direction === "up" ? i - 1 : i + 1;
+  if (j < 0 || j >= ordered.length) return;
+
+  const reordered = [...ordered];
+  [reordered[i], reordered[j]] = [reordered[j], reordered[i]];
+
+  // Renumber the whole project's positions to be dense and stable.
+  // O(N) but personal photo libraries stay small; the simplicity beats
+  // gap-rebalancing for this use case.
+  for (let k = 0; k < reordered.length; k++) {
+    const target = reordered[k];
+    if (target.position !== k) {
+      await db.update(photos).set({ position: k }).where(eq(photos.id, target.id));
+    }
+  }
+
+  revalidateProject(photo.projectId);
+  revalidatePath(`/p/${photo.projectId}/photos`);
 }
 
 /* ------------------------------ owned tools ---------------------------- */
