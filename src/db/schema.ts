@@ -330,11 +330,26 @@ export const photos = pgTable(
     url: text("url").notNull(),
     pathname: text("pathname").notNull(),
     caption: text("caption"),
+    /** EXIF capture moment, parsed client-side at upload. Null when EXIF
+     *  is absent (screenshots, web downloads). Timeline ordering falls
+     *  back to createdAt. */
+    takenAt: timestamp("taken_at", { mode: "date", withTimezone: true }),
+    /** EXIF Orientation (1–8). Used only as a display hint; Blob storage
+     *  is unmodified. Null when EXIF is absent or already baked in. */
+    orientation: integer("orientation"),
+    /** Free-text reference to a room name on the project's Property.
+     *  Rooms today are JSONB names on Property (schema above), not first-
+     *  class entities — name match is the right fidelity. */
+    roomName: text("room_name"),
+    /** Manual reorder position. Existing rows default to 0; timeline
+     *  secondary-sorts by takenAt then createdAt. */
+    position: integer("position").notNull().default(0),
     createdAt: now(),
   },
   (p) => [
     index("photo_project_idx").on(p.projectId),
     index("photo_task_idx").on(p.taskId),
+    index("photo_taken_at_idx").on(p.takenAt),
   ],
 );
 

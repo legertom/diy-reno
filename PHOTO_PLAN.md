@@ -85,13 +85,13 @@ The scaffolding everything else stands on. No AI yet. **~60% already
 in code** — see PHOTO_EXECUTION_PROMPT §0 for what's shipped.
 
 - [ ] Photo upload via Vercel Blob client-upload, project-scoped *(done)*
-- [ ] EXIF extraction at upload — `takenAt`, orientation; **no GPS UI**
-- [ ] Project-level timeline view — chronological, edge-to-edge grid,
+- [x] EXIF extraction at upload — `takenAt`, orientation; **no GPS UI**
+- [x] Project-level timeline view — chronological, edge-to-edge grid,
       full-screen swipe
-- [ ] Attach optional `room` and/or `task` references on a photo
-- [ ] Camera button reachable from project home, task row, and Foreman
+- [x] Attach optional `room` and/or `task` references on a photo
+- [x] Camera button reachable from project home, task row, and Foreman
       thread
-- [ ] Delete + reorder; **cascade Blob delete on row delete**
+- [x] Delete + reorder; **cascade Blob delete on row delete**
       (verify by deleting a test task / project)
 
 Exit: user can shoot or upload, see photos in order, and delete without

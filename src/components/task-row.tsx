@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { setTaskStatus } from "@/app/actions";
 import { Badge } from "@/components/ui";
+import { PhotoCameraButton } from "@/components/photo-timeline";
 import { cn, formatDuration } from "@/lib/utils";
 
 export type RowTask = {
@@ -134,22 +135,33 @@ export function TaskRow({
           </div>
         </div>
 
-        {task.guide && (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-label="Toggle how-to"
-            aria-expanded={open}
-            className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-line text-ink-faint transition-colors hover:border-brass hover:text-brass"
-          >
-            <ChevronRight
-              className={cn(
-                "size-3.5 transition-transform",
-                open && "rotate-90",
-              )}
+        <div className="mt-0.5 flex shrink-0 items-center gap-1">
+          {canWrite && (
+            <PhotoCameraButton
+              projectId={task.projectId}
+              taskId={task.id}
+              pathPrefix={task.id}
+              variant="icon"
+              ariaLabel={`Add a photo to #${task.num}`}
             />
-          </button>
-        )}
+          )}
+          {task.guide && (
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              aria-label="Toggle how-to"
+              aria-expanded={open}
+              className="grid size-7 place-items-center rounded-md border border-line text-ink-faint transition-colors hover:border-brass hover:text-brass"
+            >
+              <ChevronRight
+                className={cn(
+                  "size-3.5 transition-transform",
+                  open && "rotate-90",
+                )}
+              />
+            </button>
+          )}
+        </div>
       </div>
 
       {open && task.guide && (
