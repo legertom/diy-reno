@@ -414,9 +414,15 @@ export async function getProjectChat(projectId: string) {
  *  signal "this project is mid-intake" by the modal. */
 export const INTAKE_PLACEHOLDER_TITLE = "New renovation";
 
+/** The seeded opener for a fresh intake. Interview-style: short, ends on
+ *  a question. Foreman drives, user just answers. */
+const INTAKE_WELCOME_TEXT =
+  "Hey — I'm the Foreman. I'll coach you through this whole thing. So tell me: what are we renovating? A sentence is plenty — kitchen in a Brooklyn co-op, basement in a 1920s house, whatever fits.";
+
 /** Returns the user's in-progress intake project (one with the placeholder
  *  title still set), creating one with a seeded Foreman welcome if none
- *  exists. Idempotent so it's safe to call on every empty-state render.
+ *  exists. Idempotent so it's safe to call on every empty-state render
+ *  — and also backfills the welcome on placeholders that predate it.
  *  The chat is then loaded with getProjectChat(projectId). */
 export async function ensureIntakePlaceholder(
   userId: string,
@@ -434,50 +440,64 @@ export async function ensureIntakePlaceholder(
     )
     .orderBy(desc(projects.createdAt))
     .limit(1);
-  if (existing) return { projectId: existing.id };
 
-  // Reuse an existing property if the user has one, else create the
-  // default "My place" (renamed by setPropertyDetails during intake).
-  const [property] = await db
-    .select({ id: properties.id })
-    .from(properties)
-    .where(eq(properties.ownerId, userId))
+  let projectId: string;
+  if (existing) {
+    projectId = existing.id;
+  } else {
+    // Reuse an existing property if the user has one, else create the
+    // default "My place" (renamed by setPropertyDetails during intake).
+    const [property] = await db
+      .select({ id: properties.id })
+      .from(properties)
+      .where(eq(properties.ownerId, userId))
+      .limit(1);
+    const propertyId =
+      property?.id ??
+      (
+        await db
+          .insert(properties)
+          .values({ ownerId: userId, name: "My place" })
+          .returning({ id: properties.id })
+      )[0].id;
+
+    const [created] = await db
+      .insert(projects)
+      .values({
+        ownerId: userId,
+        propertyId,
+        title: INTAKE_PLACEHOLDER_TITLE,
+      })
+      .returning({ id: projects.id });
+    projectId = created.id;
+  }
+
+  // Ensure the Foreman has spoken first. Idempotent: only insert if the
+  // thread has no assistant turn yet. Handles both fresh creates AND
+  // legacy placeholders that predate the welcome-seeding.
+  const [anyAssistant] = await db
+    .select({ id: chatMessages.id })
+    .from(chatMessages)
+    .where(
+      and(
+        eq(chatMessages.projectId, projectId),
+        isNull(chatMessages.taskId),
+        eq(chatMessages.role, "assistant"),
+      ),
+    )
     .limit(1);
-  const propertyId =
-    property?.id ??
-    (
-      await db
-        .insert(properties)
-        .values({ ownerId: userId, name: "My place" })
-        .returning({ id: properties.id })
-    )[0].id;
 
-  const [created] = await db
-    .insert(projects)
-    .values({
-      ownerId: userId,
-      propertyId,
-      title: INTAKE_PLACEHOLDER_TITLE,
-    })
-    .returning({ id: projects.id });
+  if (!anyAssistant) {
+    await db.insert(chatMessages).values({
+      projectId,
+      taskId: null,
+      role: "assistant",
+      authorId: null,
+      parts: [{ type: "text", text: INTAKE_WELCOME_TEXT }],
+    });
+  }
 
-  // Seed the Foreman's opening turn so the user is greeted, not staring
-  // at an empty chat. Project-level (taskId null) matches getProjectChat.
-  await db.insert(chatMessages).values({
-    projectId: created.id,
-    taskId: null,
-    role: "assistant",
-    authorId: null,
-    parts: [
-      {
-        type: "text",
-        text:
-          "Hey — I'm the Foreman. Before we get into plans, just tell me what you're renovating. One sentence is plenty — like \"kitchen in my Brooklyn co-op\" or \"bathroom in our 1920s house.\"",
-      },
-    ],
-  });
-
-  return { projectId: created.id };
+  return { projectId };
 }
 
 /** First not-done task in phase + position order — drives "Next up". */
