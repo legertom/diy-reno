@@ -12,7 +12,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { upload } from "@vercel/blob/client";
+import { uploadProjectPhoto } from "@/lib/photo-upload";
 import {
   Send,
   Paperclip,
@@ -58,6 +58,7 @@ function guessType(url: string): string {
 const TOOL_LABELS: Record<string, string> = {
   "tool-setProjectBrief": "Updated project brief",
   "tool-updateProjectDetails": "Updated project",
+  "tool-inspectTask": "Read a task's plan",
   "tool-deleteTask": "Deleted a task",
   "tool-deletePhase": "Deleted a phase",
   "tool-addTask": "Added a task",
@@ -204,18 +205,16 @@ export function TaskChat({
     try {
       const next: Attachment[] = [];
       for (const file of Array.from(files)) {
-        const blob = await upload(
-          `projects/${projectId}/chat/${file.name}`,
+        const photo = await uploadProjectPhoto({
           file,
-          {
-            access: "public",
-            handleUploadUrl: "/api/upload",
-            clientPayload: JSON.stringify({ projectId }),
-          },
-        );
-        next.push({ url: blob.url, mediaType: file.type || guessType(blob.url) });
+          projectId,
+          taskId: taskId ?? null,
+          pathPrefix: "chat",
+        });
+        next.push({ url: photo.url, mediaType: photo.mediaType });
       }
       setAttachments((a) => [...a, ...next]);
+      router.refresh();
     } catch (e) {
       setUploadError((e as Error).message || "Couldn’t attach that photo.");
     } finally {

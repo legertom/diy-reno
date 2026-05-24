@@ -329,6 +329,15 @@ export async function getTaskDetail(projectId: string, taskId: string) {
   };
 }
 
+export async function getProjectPhotos(projectId: string) {
+  const db = getDb();
+  return db
+    .select()
+    .from(photos)
+    .where(eq(photos.projectId, projectId))
+    .orderBy(desc(photos.createdAt));
+}
+
 export async function getUserTools(userId: string) {
   const db = getDb();
   return db

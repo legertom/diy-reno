@@ -2,9 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { upload } from "@vercel/blob/client";
 import { Trash2, Upload, Sparkles, Loader2 } from "lucide-react";
-import { registerPhoto, deletePhoto } from "@/app/actions";
+import { deletePhoto } from "@/app/actions";
+import { uploadProjectPhoto } from "@/lib/photo-upload";
 
 type Photo = {
   id: string;
@@ -36,20 +36,11 @@ export function PhotoUploader({
     setError(null);
     try {
       for (const file of Array.from(files)) {
-        const blob = await upload(
-          `projects/${projectId}/${taskId}/${file.name}`,
+        await uploadProjectPhoto({
           file,
-          {
-            access: "public",
-            handleUploadUrl: "/api/upload",
-            clientPayload: JSON.stringify({ projectId }),
-          },
-        );
-        await registerPhoto({
           projectId,
           taskId,
-          url: blob.url,
-          pathname: blob.pathname,
+          pathPrefix: taskId,
         });
       }
     } catch (e) {

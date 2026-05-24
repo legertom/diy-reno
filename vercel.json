@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "npm run db:deploy && npm run build"
+  "buildCommand": "npm run db:deploy && npm run db:backfill-photos && npm run build"
 }

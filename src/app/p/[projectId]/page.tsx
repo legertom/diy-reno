@@ -1,8 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Users, Compass, Hammer } from "lucide-react";
 import {
   getProjectOr404,
   getBoard,
+  getProjectPhotos,
   computeNextUp,
   canWrite as canWriteRole,
   type TaskWithGuide,
@@ -48,7 +50,10 @@ export default async function ProjectPage({
   const { user, role, project } = await getProjectOr404(projectId);
   const writable = canWriteRole(role);
 
-  const board = await getBoard(projectId);
+  const [board, photos] = await Promise.all([
+    getBoard(projectId),
+    getProjectPhotos(projectId),
+  ]);
   const nextUp = computeNextUp(board);
   const { done, total } = board.progress;
 
@@ -163,6 +168,39 @@ export default async function ProjectPage({
               {nextUp.task.detail ? ` · ${nextUp.task.detail}` : ""}
             </p>
           </Link>
+        )}
+
+        {photos.length > 0 && (
+          <section className="mt-16">
+            <SectionHeader index="02" label="Photos" />
+            <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
+              {photos.slice(0, 12).map((p) => {
+                const thumb = (
+                  <div className="relative aspect-square overflow-hidden rounded-lg border border-line bg-paper-2">
+                    <Image
+                      src={p.url}
+                      alt={p.caption ?? "Project photo"}
+                      fill
+                      sizes="(max-width: 640px) 33vw, 25vw"
+                      className="object-cover"
+                    />
+                  </div>
+                );
+                return p.taskId ? (
+                  <Link key={p.id} href={`/p/${projectId}/t/${p.taskId}`}>
+                    {thumb}
+                  </Link>
+                ) : (
+                  <div key={p.id}>{thumb}</div>
+                );
+              })}
+            </div>
+            {photos.length > 12 && (
+              <p className="mt-3 text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+                + {photos.length - 12} more
+              </p>
+            )}
+          </section>
         )}
 
         <div className="mt-16 space-y-12">
