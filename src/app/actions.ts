@@ -692,6 +692,35 @@ export async function resetForemanThread(
   revalidatePath(`/p/${projectId}/foreman`);
 }
 
+/** Nominate (or clear) a photo as the project's "today's view of the
+ *  room" — the other end of the reality-vs-dream scrub on the home
+ *  page (PHOTO_PLAN.md §5.5). Pass null to clear. Caller must own the
+ *  photo (assertCanWrite on the project). */
+export async function setHeroShot(input: {
+  projectId: string;
+  photoId: string | null;
+}) {
+  await assertCanWrite(input.projectId);
+  const db = getDb();
+
+  if (input.photoId) {
+    const [photo] = await db
+      .select({ id: photos.id, projectId: photos.projectId })
+      .from(photos)
+      .where(eq(photos.id, input.photoId));
+    if (!photo || photo.projectId !== input.projectId)
+      throw new Error("Photo not in this project");
+  }
+
+  await db
+    .update(projects)
+    .set({ heroShotPhotoId: input.photoId })
+    .where(eq(projects.id, input.projectId));
+
+  revalidateProject(input.projectId);
+  revalidatePath(`/p/${input.projectId}/photos`);
+}
+
 /* ---------------------------------- dream ------------------------------ */
 
 /** Manual "update my dream" trigger. The other two dreamTriggers (style-

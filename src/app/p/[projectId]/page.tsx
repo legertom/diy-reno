@@ -89,6 +89,10 @@ export default async function ProjectPage({
     total,
   });
 
+  const heroShot = project.heroShotPhotoId
+    ? photos.find((p) => p.id === project.heroShotPhotoId) ?? null
+    : null;
+
   return (
     <>
       <AppHeader user={user} crumb={{ href: "/", label: "Projects" }} />
@@ -99,6 +103,8 @@ export default async function ProjectPage({
           imageUrl={project.dreamImageUrl}
           prompt={project.dreamPrompt}
           renderedAt={project.dreamRenderedAt}
+          heroShotUrl={heroShot?.url ?? null}
+          heroShotTakenAt={heroShot?.takenAt ?? heroShot?.createdAt ?? null}
           canWrite={writable}
           foremanLine={foremanLine}
         />

@@ -7,12 +7,16 @@ import { regenerateDream } from "@/app/actions";
 
 /** The headline of the project home post-Phase-5.2. When set, it is
  *  the kitchen-to-be. When unset, it is the gentle invitation to
- *  generate one. */
+ *  generate one. Phase 5.5 adds the today↔dream toggle when a hero
+ *  shot is nominated — the dream stays the default frame; today's
+ *  view is one tap away. */
 export function DreamHero({
   projectId,
   imageUrl,
   prompt,
   renderedAt,
+  heroShotUrl,
+  heroShotTakenAt,
   canWrite,
   foremanLine,
 }: {
@@ -20,11 +24,18 @@ export function DreamHero({
   imageUrl: string | null;
   prompt: string | null;
   renderedAt: Date | null;
+  /** Phase 5.5: the user-nominated "today's view" photo URL, or null
+   *  if none. When present, the hero offers a toggle to scrub between
+   *  the dream and today. */
+  heroShotUrl: string | null;
+  heroShotTakenAt: Date | null;
   canWrite: boolean;
   /** The single Foreman line beneath the image (PHOTO_PLAN.md §5.2:
    *  "one tile-prep day brings you closer to this"). */
   foremanLine: string;
 }) {
+  const [view, setView] = useState<"dream" | "today">("dream");
+  const showingDream = view === "dream" || !heroShotUrl;
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [whyOpen, setWhyOpen] = useState(false);
@@ -45,14 +56,53 @@ export function DreamHero({
       {imageUrl ? (
         <>
           <div className="relative aspect-[4/3] w-full overflow-hidden bg-paper-2 sm:aspect-[16/9]">
+            {/* Render both layers; cross-fade by toggling opacity so the
+                browser doesn't refetch when the user scrubs. */}
             <Image
               src={imageUrl}
               alt="Your kitchen, as it will be"
               fill
               priority
               sizes="100vw"
-              className="object-cover"
+              className={`object-cover transition-opacity duration-300 ${
+                showingDream ? "opacity-100" : "opacity-0"
+              }`}
             />
+            {heroShotUrl && (
+              <Image
+                src={heroShotUrl}
+                alt="Your kitchen today"
+                fill
+                sizes="100vw"
+                className={`object-cover transition-opacity duration-300 ${
+                  showingDream ? "opacity-0" : "opacity-100"
+                }`}
+              />
+            )}
+            {heroShotUrl && (
+              <div className="absolute bottom-3 left-1/2 inline-flex -translate-x-1/2 items-center overflow-hidden rounded-full border border-white/30 bg-black/55 text-[11px] font-semibold tracking-[0.16em] text-white uppercase backdrop-blur-sm">
+                <button
+                  type="button"
+                  onClick={() => setView("today")}
+                  aria-pressed={view === "today"}
+                  className={`px-4 py-1.5 transition-colors ${
+                    view === "today" ? "bg-white text-black" : "hover:bg-white/10"
+                  }`}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("dream")}
+                  aria-pressed={view === "dream"}
+                  className={`px-4 py-1.5 transition-colors ${
+                    view === "dream" ? "bg-white text-black" : "hover:bg-white/10"
+                  }`}
+                >
+                  Dream
+                </button>
+              </div>
+            )}
             {pending && (
               <div className="absolute inset-0 grid place-items-center bg-black/40 text-white">
                 <span className="text-sm font-medium">Rendering…</span>
@@ -70,9 +120,14 @@ export function DreamHero({
               >
                 <Info className="size-3" /> Why this image?
               </button>
-              {renderedAt && (
+              {showingDream && renderedAt && (
                 <span className="font-normal tracking-normal normal-case opacity-70">
-                  Updated {relativeShort(renderedAt)}
+                  Dream · {relativeShort(renderedAt)}
+                </span>
+              )}
+              {!showingDream && heroShotTakenAt && (
+                <span className="font-normal tracking-normal normal-case opacity-70">
+                  Today · {relativeShort(heroShotTakenAt)}
                 </span>
               )}
               {canWrite && (
