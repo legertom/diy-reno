@@ -121,19 +121,24 @@ leaving Blob orphans.
 
 ### 5.2  Dream hero — the home-screen render
 
+> ✓ **5.2 shipped** — pending merge (PR #2, 2026-05-24). Core loop
+> in: render, cache, "why this image?", manual + style-change
+> triggers, conversational `setStyleProfile`. Three variations,
+> wallpaper export, and Sunday postcard remain as follow-ups.
+
 The new headline. The user's first reason to open the app. **Provider:
 Gemini image via Vercel AI Gateway (locked, §5).**
 
-- [ ] Render pipeline: project `styleProfile` (see §5 for shape) +
+- [x] Render pipeline: project `styleProfile` (see §5 for shape) +
       room kind → Gemini image via AI Gateway
 - [ ] **Three variations** offered at intake end ("warmer / cooler /
       bolder"); user picks one; that becomes the project's north star.
       Extends Phase 4's conversational intake.
-- [ ] Cached as a static Blob asset per project; served from CDN on
+- [x] Cached as a static Blob asset per project; served from CDN on
       every login at zero AI spend
-- [ ] **Decision-triggered re-render** — fires on any `dreamTrigger`
+- [x] **Decision-triggered re-render** — fires on any `dreamTrigger`
       event (see §5). Cooldown so the dream is not flickering.
-- [ ] **Home-screen treatment** — post-login `/` becomes the dream as
+- [x] **Home-screen treatment** — post-login `/` becomes the dream as
       the edge-to-edge hero. Task list demotes to a sidecar. One
       Foreman line beneath the image ("one tile-prep day brings you
       closer to this"). This is an IA shift — the photo-led visual
@@ -143,7 +148,7 @@ Gemini image via Vercel AI Gateway (locked, §5).**
 - [ ] **Sunday postcard ritual** — the dream is regenerated quietly on
       Sunday morning, framed as a "postcard from your future kitchen."
       **Off by default**, opt-in (§5).
-- [ ] **"Why this image?"** — tap the dream to see what choices
+- [x] **"Why this image?"** — tap the dream to see what choices
       informed it ("based on: shaker fronts, Carrara, sage walls").
       Tappable choices → edit them, re-render.
 - [ ] **Quality reassessment** — after the first 20 renders, audit
