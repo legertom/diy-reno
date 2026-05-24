@@ -4,6 +4,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -22,7 +23,23 @@ import {
   Hammer,
   Check,
   RotateCcw,
+  Mic,
 } from "lucide-react";
+
+// Minimal Web Speech API shape — the DOM lib doesn't include these types.
+type SpeechRecognitionResult = { 0: { transcript: string } };
+type SpeechRecognitionEvent = { results: ArrayLike<SpeechRecognitionResult> };
+type SpeechRecognitionLike = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  start(): void;
+  stop(): void;
+};
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 import { ATTACH_EVENT } from "@/components/task/photo-uploader";
 import { resetForemanThread } from "@/app/actions";
 
@@ -86,9 +103,65 @@ export function TaskChat({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [recording, setRecording] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const voiceBaselineRef = useRef("");
   const busy = status === "submitted" || status === "streaming";
+
+  // Browser voice support — Chromium has SpeechRecognition, Safari (incl.
+  // iOS 16+) has webkitSpeechRecognition, Firefox lacks both so the mic
+  // button stays hidden. useSyncExternalStore avoids hydration mismatch
+  // without the setState-in-effect anti-pattern.
+  const voiceSupported = useSyncExternalStore(
+    () => () => {},
+    () =>
+      "SpeechRecognition" in window || "webkitSpeechRecognition" in window,
+    () => false,
+  );
+
+  function startVoice() {
+    const w = window as unknown as {
+      SpeechRecognition?: SpeechRecognitionCtor;
+      webkitSpeechRecognition?: SpeechRecognitionCtor;
+    };
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) return;
+    const r = new Ctor();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = "en-US";
+    // Keep whatever the user already typed; append the transcript after it.
+    voiceBaselineRef.current = input;
+    r.onresult = (e) => {
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) {
+        transcript += e.results[i][0].transcript;
+      }
+      const base = voiceBaselineRef.current;
+      setInput(base + (base && transcript ? " " : "") + transcript);
+    };
+    r.onend = () => setRecording(false);
+    r.onerror = () => setRecording(false);
+    try {
+      r.start();
+      recognitionRef.current = r;
+      setRecording(true);
+    } catch {
+      setRecording(false);
+    }
+  }
+
+  function stopVoice() {
+    recognitionRef.current?.stop();
+  }
+
+  // If the component unmounts mid-recording (modal close), kill the
+  // recognition so the mic doesn't keep listening.
+  useEffect(() => {
+    return () => recognitionRef.current?.stop();
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -390,6 +463,22 @@ export function TaskChat({
             <Paperclip className="size-4" />
           )}
         </button>
+        {voiceSupported && (
+          <button
+            type="button"
+            onClick={recording ? stopVoice : startVoice}
+            disabled={busy}
+            className={
+              recording
+                ? "grid size-10 shrink-0 animate-pulse place-items-center rounded-lg border border-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 text-danger"
+                : "grid size-10 shrink-0 place-items-center rounded-lg border border-line-strong text-ink-soft transition-colors hover:border-brass hover:text-brass disabled:opacity-50"
+            }
+            aria-label={recording ? "Stop voice input" : "Start voice input"}
+            aria-pressed={recording}
+          >
+            <Mic className="size-4" />
+          </button>
+        )}
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
