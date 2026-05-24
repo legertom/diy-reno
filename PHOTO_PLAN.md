@@ -223,12 +223,18 @@ user pointing.
 
 ### 5.5  Reality-vs-dream loop
 
+> ✓ **5.5 (today↔dream toggle) shipped** — pending merge (PR #3,
+> 2026-05-24). Hero-shot nomination + toggle between today's view
+> and the dream on the home page. Punch list, try-before-you-buy,
+> and realistic intermediate all need the 5.11 per-request render
+> path — they wait there.
+
 The compounding move on 5.2. Makes the dream interactive instead of
 decorative.
 
-- [ ] **Hero shot of current state** — user nominates one photo as
+- [x] **Hero shot of current state** — user nominates one photo as
       "today's view of the room" (one tap; changeable anytime)
-- [ ] **Scrub between today and dream** — drag your thumb across the
+- [x] **Scrub between today and dream** — drag your thumb across the
       home-screen image to time-travel between the two
 - [ ] **"What's left?"** — Foreman compares hero shot to dream and
       surfaces visible remaining work as a punch list (visual chips,

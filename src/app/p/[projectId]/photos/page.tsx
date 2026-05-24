@@ -57,6 +57,7 @@ export default async function PhotosPage({
             rooms={rooms}
             tasks={tasks}
             canWrite={writable}
+            heroShotPhotoId={project.heroShotPhotoId}
           />
         )}
       </main>

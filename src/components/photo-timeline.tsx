@@ -19,10 +19,12 @@ import {
   Camera,
   CornerDownRight,
   Loader2,
+  Home,
 } from "lucide-react";
 import {
   deletePhoto,
   movePhoto,
+  setHeroShot,
   updatePhotoMeta,
 } from "@/app/actions";
 import type { TimelinePhoto } from "@/lib/projects";
@@ -57,12 +59,14 @@ export function PhotoTimeline({
   rooms,
   tasks,
   canWrite,
+  heroShotPhotoId,
 }: {
   projectId: string;
   photos: TimelinePhoto[];
   rooms: string[];
   tasks: Task[];
   canWrite: boolean;
+  heroShotPhotoId: string | null;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
@@ -105,6 +109,7 @@ export function PhotoTimeline({
           rooms={rooms}
           tasks={tasks}
           canWrite={canWrite}
+          heroShotPhotoId={heroShotPhotoId}
           startIdx={openIdx}
           onClose={() => setOpenIdx(null)}
         />
@@ -119,6 +124,7 @@ function Lightbox({
   rooms,
   tasks,
   canWrite,
+  heroShotPhotoId,
   startIdx,
   onClose,
 }: {
@@ -127,6 +133,7 @@ function Lightbox({
   rooms: string[];
   tasks: Task[];
   canWrite: boolean;
+  heroShotPhotoId: string | null;
   startIdx: number;
   onClose: () => void;
 }) {
@@ -216,6 +223,7 @@ function Lightbox({
           rooms={rooms}
           tasks={tasks}
           canWrite={canWrite}
+          isHeroShot={active.id === heroShotPhotoId}
           onDeleted={() => {
             // Close after delete; the page revalidates on the action.
             onClose();
@@ -232,6 +240,7 @@ function LightboxMeta({
   rooms,
   tasks,
   canWrite,
+  isHeroShot,
   onDeleted,
 }: {
   projectId: string;
@@ -239,6 +248,7 @@ function LightboxMeta({
   rooms: string[];
   tasks: Task[];
   canWrite: boolean;
+  isHeroShot: boolean;
   onDeleted: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -326,6 +336,32 @@ function LightboxMeta({
                   className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10"
                 >
                   <Pencil className="size-3" /> Edit
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await setHeroShot({
+                        projectId,
+                        photoId: isHeroShot ? null : photo.id,
+                      });
+                    })
+                  }
+                  className={
+                    isHeroShot
+                      ? "inline-flex items-center gap-1 rounded-full border border-brass/60 bg-brass/15 px-3 py-1.5 text-[12px] text-brass hover:bg-brass/25 disabled:opacity-50"
+                      : "inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10 disabled:opacity-50"
+                  }
+                  aria-pressed={isHeroShot}
+                  title={
+                    isHeroShot
+                      ? "Currently today's view on the home screen"
+                      : "Show this on the home screen as today's view"
+                  }
+                >
+                  <Home className="size-3" />
+                  {isHeroShot ? "Today's view" : "Set as today's view"}
                 </button>
                 <button
                   type="button"
