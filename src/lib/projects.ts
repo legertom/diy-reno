@@ -349,6 +349,18 @@ export type ForemanPick =
       photoCaption: string | null;
     };
 
+/** "On this day" — a photo from roughly one month or three months
+ *  ago (within a ±5 day window of today's date). Quiet by design:
+ *  when nothing matches we return null and the section just doesn't
+ *  render. */
+export type OnThisDayPick = {
+  photoId: string;
+  photoUrl: string;
+  takenAt: Date;
+  caption: string | null;
+  label: string;
+};
+
 /** Phase 5.13 — Foreman's picks. A single curated bundle the home
  *  surface can lead with: the project's cached dream image, the user-
  *  nominated "today's view," and a handful of moment/progress ROIs
@@ -366,6 +378,7 @@ export async function getForemanPicks(projectId: string): Promise<{
   } | null;
   moments: ForemanPick[];
   heroOfTheWeek: ForemanPick | null;
+  onThisDay: OnThisDayPick[];
 }> {
   const db = getDb();
   const [project] = await db
@@ -385,6 +398,7 @@ export async function getForemanPicks(projectId: string): Promise<{
       heroShot: null,
       moments: [],
       heroOfTheWeek: null,
+      onThisDay: [],
     };
   }
 
@@ -453,6 +467,33 @@ export async function getForemanPicks(projectId: string): Promise<{
     return null;
   })();
 
+  // "On this day" — pick at most one photo from ~1 month back and one
+  // from ~3 months back, within a ±5-day window. Stays quiet when
+  // there's nothing fresh enough yet (early project) — better silence
+  // than filler. Anxiety-aware: this is a callback, not a countdown.
+  const onThisDay: OnThisDayPick[] = [];
+  const now = new Date();
+  const winDays = 5;
+  const winMs = winDays * 24 * 60 * 60 * 1000;
+  for (const monthsBack of [1, 3]) {
+    const target = new Date(now);
+    target.setMonth(target.getMonth() - monthsBack);
+    const targetMs = target.getTime();
+    const match = all.find((p) => {
+      const stamp = (p.takenAt ?? p.createdAt).getTime();
+      return Math.abs(stamp - targetMs) <= winMs;
+    });
+    if (match) {
+      onThisDay.push({
+        photoId: match.id,
+        photoUrl: match.url,
+        takenAt: match.takenAt ?? match.createdAt,
+        caption: match.caption ?? match.captionAi,
+        label: monthsBack === 1 ? "1 month ago" : `${monthsBack} months ago`,
+      });
+    }
+  }
+
   return {
     dreamImageUrl: project.dreamImageUrl,
     dreamRenderedAt: project.dreamRenderedAt,
@@ -460,6 +501,7 @@ export async function getForemanPicks(projectId: string): Promise<{
     heroShot,
     moments,
     heroOfTheWeek,
+    onThisDay,
   };
 }
 
