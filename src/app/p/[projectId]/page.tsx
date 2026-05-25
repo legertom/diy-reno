@@ -27,7 +27,12 @@ const stripNo = (s: string) =>
 
 /** The single Foreman line beneath the dream image. Warm and forward-
  *  looking; never a countdown, never a guilt trip. Anxiety-aware per
- *  feedback_dates_anxiety.md — dates are out of scope here on purpose. */
+ *  feedback_dates_anxiety.md — dates are out of scope here on purpose.
+ *
+ *  Phase names in this project are free-text and can run long
+ *  ("wall prep — frame strip (in progress)" — that's a real example),
+ *  so we never splice them into the sentence. Use the task title
+ *  instead, which is always short and grammatical. */
 function composeForemanLine(input: {
   nextUpTitle: string | null;
   nextUpPhase: string | null;
@@ -38,9 +43,8 @@ function composeForemanLine(input: {
     if (input.total === 0) return "The Foreman is ready when you are.";
     return "Every photo, every task — built toward this.";
   }
-  if (input.nextUpTitle && input.nextUpPhase) {
-    const phase = stripNo(input.nextUpPhase).toLowerCase();
-    return `One ${phase} day brings you closer to this.`;
+  if (input.nextUpTitle) {
+    return `Up next: ${input.nextUpTitle.toLowerCase()}. One more step toward this.`;
   }
   if (input.total === 0) {
     return "This is where you're going.";

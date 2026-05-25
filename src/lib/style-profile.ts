@@ -29,17 +29,42 @@ export type StyleProfile = z.infer<typeof styleProfileSchema>;
 
 /** Build the dream-hero prompt from a project's styleProfile + brief.
  *  Kept as one function so the "why this image?" panel can render the
- *  same text the model receives. */
+ *  same text the model receives.
+ *
+ *  When `hasRoomPhotos` is true, the renderer is also passing the user's
+ *  actual room photos as image inputs — the prompt leads with a strong
+ *  "preserve THIS room" instruction so the multimodal model doesn't
+ *  invent a different kitchen. When `refImageCount > 0` the prompt
+ *  acknowledges inspiration images.  */
 export function buildDreamPrompt(input: {
   projectTitle: string;
   brief: string | null;
   styleProfile: StyleProfile | null;
+  hasRoomPhotos?: boolean;
+  refImageCount?: number;
 }): string {
   const sp = input.styleProfile ?? {};
-  const parts: string[] = [
-    `High-end editorial photograph of a finished ${input.projectTitle.toLowerCase()}.`,
+  const parts: string[] = [];
+
+  if (input.hasRoomPhotos) {
+    parts.push(
+      `THIS IS THE USER'S ACTUAL ROOM — see the attached photo${input.refImageCount && input.refImageCount > 0 ? "s of the room" : "(s)"}. Render the SAME room finished: preserve the layout, the window placement, the wall positions, the ceiling height, and the proportions. Do NOT invent a different kitchen. Show how the room they actually have will look once the renovation is complete.`,
+    );
+  } else {
+    parts.push(
+      `High-end editorial photograph of a finished ${input.projectTitle.toLowerCase()}.`,
+    );
+  }
+
+  parts.push(
     `Magazine-quality, natural light, single hero shot, no people, no text overlays, no watermarks.`,
-  ];
+  );
+
+  if (input.refImageCount && input.refImageCount > 0) {
+    parts.push(
+      `Some attached photos are inspiration references — pull style and finish cues from them, but apply those cues to the user's actual room (not a copy of the reference).`,
+    );
+  }
 
   if (sp.vibe) parts.push(`Vibe: ${sp.vibe}.`);
   if (sp.dimensionsHint) parts.push(`Space: ${sp.dimensionsHint}.`);
