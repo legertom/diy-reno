@@ -8,25 +8,73 @@
 > `AGENTS.md`, `README.md`, and `PLAN.md` first; this plan assumes all
 > three.
 
-## Overnight run 2026-05-24
+## Overnight run 2026-05-24 — end-of-run handoff
 
-- **✓ 5.1 shipped** — [PR #1](https://github.com/legertom/diy-reno/pull/1)
-  merged (`c2eda67`). §5 migration pipeline green; live "Kitchen
-  Renovation" intact, new columns `taken_at` / `orientation` /
-  `room_name` / `position` in `photo`. Also fixed a pre-existing
-  `backfill-chat-photos.ts` casing bug that had been failing every
-  build since `8f5c16a`.
-- **In flight:** 5.2 + 5.3 (dream hero + passive vision) on branch
-  `phase-5-2-3-dream-and-vision`. Migration `0005_project_dream_hero.sql`
-  drafted (additive: `style_profile`, `dream_image_url`,
-  `dream_pathname`, `dream_prompt`, `dream_rendered_at` on `project`).
-- **Tom-must-verify (5.1):** mobile capture flow (camera icons on home
-  / task row), `/p/<projectId>/photos` timeline + lightbox + reorder +
-  delete, EXIF date display. Listed in PR #1 body.
-- **Exact next action when you resume:** continue on
-  `phase-5-2-3-dream-and-vision` — the schema migration is staged, next
-  step is `src/lib/dream.ts` (Gemini 2.5 Flash Image render via AI
-  Gateway → Blob cache → row update), then home-page IA shift.
+**Six sub-phases shipped to prod.** Six PRs merged via the §5 pipeline,
+all green, live "Kitchen Renovation" intact through every migration.
+
+| # | Title | PR | Merge commit |
+|---|---|---|---|
+| 5.1 | Foundation — timeline, EXIF, attach, camera | [PR #1](https://github.com/legertom/diy-reno/pull/1) | `c2eda67` |
+| 5.2 | Dream hero — kitchen-to-be as headline | [PR #2](https://github.com/legertom/diy-reno/pull/2) | `23ba40f` |
+| 5.3 + 5.4 substrate | Passive vision (caption/tags/ROIs/safety) | [PR #2](https://github.com/legertom/diy-reno/pull/2) | `23ba40f` |
+| 5.5 | Reality-vs-dream — today↔dream toggle | [PR #3](https://github.com/legertom/diy-reno/pull/3) | `a259195` |
+| 5.6 | Photo critique — "Ask the Foreman" lightbox | [PR #4](https://github.com/legertom/diy-reno/pull/4) | `509b468` |
+| 5.8 | Timeline search + filter chips | [PR #5](https://github.com/legertom/diy-reno/pull/5) | (rebased to main) |
+
+**🚨 BLOCKED on 5.11 — see [`BLOCKED.md`](./BLOCKED.md).** Per §3 item 6,
+5.11 is the hard stop. I parked it with a concrete cost-cap question
+(per-user daily cap + first-variant pick) and three options with
+recommendations. Picking one unblocks ~$6–$12/mo of recurring AI
+gateway spend.
+
+**Deferred this run (decisions or scope, not blockers):**
+- **5.7 same-angle pairing** — needs image-embedding provider pick. The
+  embedding column is in `photo` but no producer wired. See `BLOCKED.md`
+  follow-ups.
+- **5.9 Foreman as photographer** — `getUserMedia()` framing overlay is
+  the heavy bit; suggestions could be a lightweight follow-up.
+- **5.10 paint-chip matching** — needs a curated paint DB or matching
+  API decision.
+- **5.12 / 5.13 / 5.14 / 5.15** — listed in `BLOCKED.md` follow-ups
+  with rough scope notes.
+
+**Tom-must-verify (every shipped PR has a "Tom-must-verify" section in
+its body — these only run in your authenticated browser):**
+- 5.1: mobile camera capture from home / task row / Foreman; full-screen
+  swipe lightbox; EXIF date display; reorder; delete.
+- 5.2: "Generate my dream" → image lands edge-to-edge; conversational
+  style ("shaker white cabinets, brass fixtures, oak floors") triggers
+  re-render; "Why this image?" reveals prompt.
+- 5.3 / 5.4: upload a phone photo → vision pass returns caption + tags
+  + ROI strip within ~3–5s; upload an electrical photo → "stop · call a
+  pro" red overlay.
+- 5.5: nominate a hero shot → home page gets Today / Dream toggle that
+  cross-fades.
+- 5.6: lightbox "Ask the Foreman" closes box, opens bubble with the
+  photo attached, ready to send.
+- 5.8: type "tile" in the timeline search → grid filters; safety chip
+  filters to flagged photos.
+
+**Exact next action when you resume:**
+1. Read `BLOCKED.md`. Pick option 1, 2, or 3 (or tell me something else).
+2. Mobile-verify the six shipped PRs against your phone — anything that
+   doesn't behave, open an issue and I'll fix it before §5.11.
+3. With your `BLOCKED.md` answer in hand, the next branch is
+   `phase-5-11-variations` (or whatever the option dictates).
+
+**Things this run is honest about:**
+- I cannot drive your Google login, so every "verified" claim on a
+  shipped PR is build-clean + pipeline-green + spot-checked on the
+  preview URL where it doesn't need auth. The `Tom-must-verify`
+  sections are the gap.
+- The `setStyleProfile` Foreman tool was added but the system prompt
+  doesn't yet aggressively prompt for style choices during intake —
+  you may need to volunteer "I want shaker / brass / sage" before the
+  dream personalizes.
+- Each Vercel preview build re-applies the §5 migration pipeline to
+  prod (idempotent, gated). That's ~3 seconds of Neon branch activity
+  per build. Cheap but visible in Neon usage logs.
 
 ---
 
