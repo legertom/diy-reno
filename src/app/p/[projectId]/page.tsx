@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Users, Compass, Hammer } from "lucide-react";
+import { Users, Compass, Hammer, Sparkles } from "lucide-react";
 import {
   getProjectOr404,
   getBoard,
@@ -228,14 +228,22 @@ export default async function ProjectPage({
               />
             )}
             {photos.length > 0 && (
-              <Link
-                href={`/p/${projectId}/photos`}
-                className="ml-auto text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase transition-colors hover:text-ink"
-              >
-                {photos.length === 1
-                  ? "View timeline"
-                  : `View all ${photos.length}`}
-              </Link>
+              <div className="ml-auto flex items-center gap-3">
+                <Link
+                  href={`/p/${projectId}/picks`}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-[0.18em] text-brass uppercase transition-colors hover:text-ink"
+                >
+                  <Sparkles className="size-3" /> Foreman&apos;s picks
+                </Link>
+                <Link
+                  href={`/p/${projectId}/photos`}
+                  className="text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase transition-colors hover:text-ink"
+                >
+                  {photos.length === 1
+                    ? "View timeline"
+                    : `View all ${photos.length}`}
+                </Link>
+              </div>
             )}
           </div>
           {photos.length > 0 ? (

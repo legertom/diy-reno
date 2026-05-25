@@ -329,6 +329,140 @@ export async function getTaskDetail(projectId: string, taskId: string) {
   };
 }
 
+export type ForemanPick =
+  | {
+      kind: "moment";
+      photoId: string;
+      photoUrl: string;
+      photoTakenAt: Date | null;
+      photoCaption: string | null;
+      roiId: string;
+      bbox: { x: number; y: number; w: number; h: number };
+      category: import("@/lib/photo-vision-types").ROICategory;
+      caption: string;
+    }
+  | {
+      kind: "hero-of-the-week";
+      photoId: string;
+      photoUrl: string;
+      photoTakenAt: Date | null;
+      photoCaption: string | null;
+    };
+
+/** Phase 5.13 — Foreman's picks. A single curated bundle the home
+ *  surface can lead with: the project's cached dream image, the user-
+ *  nominated "today's view," and a handful of moment/progress ROIs
+ *  the Foreman flagged during passive vision (5.3/5.4). No new AI
+ *  calls — pure DB scan over what's already cached. */
+export async function getForemanPicks(projectId: string): Promise<{
+  dreamImageUrl: string | null;
+  dreamRenderedAt: Date | null;
+  dreamPrompt: string | null;
+  heroShot: {
+    id: string;
+    url: string;
+    takenAt: Date | null;
+    caption: string | null;
+  } | null;
+  moments: ForemanPick[];
+  heroOfTheWeek: ForemanPick | null;
+}> {
+  const db = getDb();
+  const [project] = await db
+    .select({
+      dreamImageUrl: projects.dreamImageUrl,
+      dreamRenderedAt: projects.dreamRenderedAt,
+      dreamPrompt: projects.dreamPrompt,
+      heroShotPhotoId: projects.heroShotPhotoId,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!project) {
+    return {
+      dreamImageUrl: null,
+      dreamRenderedAt: null,
+      dreamPrompt: null,
+      heroShot: null,
+      moments: [],
+      heroOfTheWeek: null,
+    };
+  }
+
+  const all = await db
+    .select()
+    .from(photos)
+    .where(eq(photos.projectId, projectId))
+    .orderBy(desc(photos.takenAt), desc(photos.createdAt));
+
+  const heroShot = project.heroShotPhotoId
+    ? (() => {
+        const found = all.find((p) => p.id === project.heroShotPhotoId);
+        return found
+          ? {
+              id: found.id,
+              url: found.url,
+              takenAt: found.takenAt,
+              caption: found.caption ?? found.captionAi,
+            }
+          : null;
+      })()
+    : null;
+
+  // Surface up to 8 high-signal ROIs: moment + progress categories,
+  // freshest first. Safety/defect ROIs go through critique (5.6); they
+  // don't belong on the "best of" surface.
+  const moments: ForemanPick[] = [];
+  for (const p of all) {
+    for (const roi of (p.rois ?? []) as import("@/lib/photo-vision-types").PhotoROI[]) {
+      if (roi.category !== "moment" && roi.category !== "progress") continue;
+      moments.push({
+        kind: "moment",
+        photoId: p.id,
+        photoUrl: p.url,
+        photoTakenAt: p.takenAt,
+        photoCaption: p.caption ?? p.captionAi,
+        roiId: roi.id,
+        bbox: roi.bbox,
+        category: roi.category,
+        caption: roi.caption,
+      });
+      if (moments.length >= 8) break;
+    }
+    if (moments.length >= 8) break;
+  }
+
+  // Hero-of-the-week candidate: latest photo with at least one moment
+  // ROI, taken in the last 7 days (falls back to createdAt). Stays quiet
+  // when there's nothing fresh — better silence than filler.
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const heroOfTheWeek = (() => {
+    for (const p of all) {
+      const stamp = (p.takenAt ?? p.createdAt).getTime();
+      if (stamp < weekAgo) continue;
+      const rois = (p.rois ?? []) as import("@/lib/photo-vision-types").PhotoROI[];
+      const moment = rois.find((r) => r.category === "moment");
+      if (!moment) continue;
+      return {
+        kind: "hero-of-the-week",
+        photoId: p.id,
+        photoUrl: p.url,
+        photoTakenAt: p.takenAt,
+        photoCaption: p.caption ?? p.captionAi,
+      } satisfies ForemanPick;
+    }
+    return null;
+  })();
+
+  return {
+    dreamImageUrl: project.dreamImageUrl,
+    dreamRenderedAt: project.dreamRenderedAt,
+    dreamPrompt: project.dreamPrompt,
+    heroShot,
+    moments,
+    heroOfTheWeek,
+  };
+}
+
 export async function getProjectPhotos(projectId: string) {
   const db = getDb();
   return db
