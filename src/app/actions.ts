@@ -692,6 +692,36 @@ export async function resetForemanThread(
   revalidatePath(`/p/${projectId}/foreman`);
 }
 
+/** Phase 5.10 v0: pull the dominant colors out of a photo and return
+ *  the per-color search links. Read-only — no DB writes; just an AI
+ *  call gated on project write access (vision is metered, even if
+ *  cheap). Caller renders the swatches + links in the lightbox. */
+export async function extractPhotoPalette(input: {
+  projectId: string;
+  photoId: string;
+}): Promise<{
+  colors: (import("@/lib/photo-palette").PhotoColor & {
+    matches: { brand: string; url: string }[];
+  })[];
+} | null> {
+  await assertCanWrite(input.projectId);
+  const db = getDb();
+  const [photo] = await db
+    .select({ id: photos.id, projectId: photos.projectId, url: photos.url })
+    .from(photos)
+    .where(eq(photos.id, input.photoId));
+  if (!photo || photo.projectId !== input.projectId) return null;
+
+  const { extractPalette, paintMatchLinks } = await import("@/lib/photo-palette");
+  const { colors } = await extractPalette(photo.url);
+  return {
+    colors: colors.map((c) => ({
+      ...c,
+      matches: paintMatchLinks(c),
+    })),
+  };
+}
+
 /** Phase 5.8: one-tap photo → task. Creates an unphased task at the
  *  end of the project's task list, with the photo attached (so the
  *  task's photo strip shows it immediately). Used by the lightbox

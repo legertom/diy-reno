@@ -23,10 +23,13 @@ import {
   MessageSquare,
   Plus,
   Check,
+  Palette,
+  ExternalLink,
 } from "lucide-react";
 import {
   createTaskFromPhoto,
   deletePhoto,
+  extractPhotoPalette,
   movePhoto,
   setHeroShot,
   updatePhotoMeta,
@@ -376,6 +379,17 @@ function LightboxMeta({
   const [roomName, setRoomName] = useState(photo.roomName ?? "");
   const [taskId, setTaskId] = useState(photo.taskId ?? "");
   const [pending, startTransition] = useTransition();
+  const [palette, setPalette] = useState<
+    | {
+        hex: string;
+        name: string;
+        surface?: string;
+        matches: { brand: string; url: string }[];
+      }[]
+    | null
+  >(null);
+  const [paletteLoading, setPaletteLoading] = useState(false);
+  const [paletteError, setPaletteError] = useState<string | null>(null);
 
   const dirty = useMemo(
     () =>
@@ -451,6 +465,17 @@ function LightboxMeta({
               photo={photo}
               canWrite={canWrite}
             />
+            {paletteError && (
+              <p className="text-xs text-red-300">{paletteError}</p>
+            )}
+            {palette && palette.length > 0 && (
+              <PalettePanel palette={palette} />
+            )}
+            {palette && palette.length === 0 && (
+              <p className="text-xs opacity-60">
+                The Foreman didn&apos;t find anything worth matching here.
+              </p>
+            )}
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
@@ -459,6 +484,35 @@ function LightboxMeta({
                 className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-black hover:bg-white/90"
               >
                 <MessageSquare className="size-3" /> Ask the Foreman
+              </button>
+              <button
+                type="button"
+                disabled={paletteLoading}
+                onClick={async () => {
+                  setPaletteError(null);
+                  setPaletteLoading(true);
+                  try {
+                    const result = await extractPhotoPalette({
+                      projectId,
+                      photoId: photo.id,
+                    });
+                    setPalette(result?.colors ?? []);
+                  } catch (e) {
+                    setPaletteError(
+                      (e as Error).message || "Could not extract colors",
+                    );
+                  } finally {
+                    setPaletteLoading(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10 disabled:opacity-50"
+              >
+                {paletteLoading ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Palette className="size-3" />
+                )}{" "}
+                {palette ? "Refresh colors" : "Match this color"}
               </button>
               {canWrite && (
                 <>
@@ -633,6 +687,62 @@ function LightboxMeta({
           </form>
         )}
       </div>
+    </div>
+  );
+}
+
+function PalettePanel({
+  palette,
+}: {
+  palette: {
+    hex: string;
+    name: string;
+    surface?: string;
+    matches: { brand: string; url: string }[];
+  }[];
+}) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className="mb-2 text-[10px] font-semibold tracking-[0.18em] uppercase opacity-70">
+        Match colors at a paint store
+      </div>
+      <ul className="space-y-3">
+        {palette.map((c) => (
+          <li key={c.hex} className="flex items-start gap-3">
+            <span
+              className="mt-0.5 size-10 shrink-0 rounded-md border border-white/20"
+              style={{ backgroundColor: c.hex }}
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                <span className="font-medium">{c.name}</span>{" "}
+                <span className="ml-1 font-mono text-[11px] opacity-70">
+                  {c.hex}
+                </span>
+                {c.surface && (
+                  <span className="ml-2 text-[11px] opacity-60">
+                    · {c.surface}
+                  </span>
+                )}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {c.matches.map((m) => (
+                  <a
+                    key={m.brand}
+                    href={m.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-white/15 px-2 py-0.5 text-[10px] hover:bg-white/10"
+                  >
+                    {m.brand} <ExternalLink className="size-3" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
