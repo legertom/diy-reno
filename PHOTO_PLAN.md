@@ -440,6 +440,11 @@ without a tape if needed.
 
 ### 5.13  Storytelling layer
 
+> ✓ **5.13 Foreman's picks v0 shipped** — pending merge (PR #6,
+> 2026-05-24). The capstone surface lands first; magazine cover,
+> photo essay, time-lapse, "on this day," and shareable postcards
+> remain as follow-ups.
+
 Delight. Quiet, opt-in, never a leaderboard. **The home of curation
 across the whole plan.**
 
@@ -450,7 +455,7 @@ across the whole plan.**
 - [ ] **"On this day"** — a photo from one month / three months ago
 - [ ] **Shareable postcards** with hairline-rule chrome for partner /
       family / a Slack channel
-- [ ] **Foreman's picks** — the capstone. A single curated view that
+- [x] **Foreman's picks** — the capstone. A single curated view that
       pulls diptychs (5.7), hero shots (5.9), smart-crop highlights
       (5.4), magazine spreads from this section, and the dream
       regeneration history. The "best of" surface the user shows
