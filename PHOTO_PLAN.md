@@ -10,9 +10,9 @@
 
 ## Overnight run 2026-05-24 — end-of-run handoff
 
-**Eight sub-phases shipped to prod.** Eight PRs merged via the §5
-pipeline, all green, live "Kitchen Renovation" intact through every
-migration.
+**Nine sub-phase deliverables shipped to prod across eight PRs**, all
+green through the §5 pipeline, live "Kitchen Renovation" intact through
+every migration.
 
 | # | Title | PR | Merge commit |
 |---|---|---|---|
@@ -24,6 +24,7 @@ migration.
 | 5.8 | Timeline search + filter chips | [PR #5](https://github.com/legertom/diy-reno/pull/5) | `c947818` |
 | 5.13 v0 | Foreman's picks — capstone curation | [PR #6](https://github.com/legertom/diy-reno/pull/6) | `e08e432` |
 | 5.8 photo→task | One-tap defect ROI → task | [PR #7](https://github.com/legertom/diy-reno/pull/7) | `9f126b6` |
+| 5.13 "On this day" | Month-old / quarter-old photo callbacks | [PR #8](https://github.com/legertom/diy-reno/pull/8) | `a645e4f` |
 
 **🚨 BLOCKED on 5.11 — see [`BLOCKED.md`](./BLOCKED.md).** Per §3 item 6,
 5.11 is the hard stop. I parked it with a concrete cost-cap question
