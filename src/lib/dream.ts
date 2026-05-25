@@ -48,66 +48,113 @@ export async function renderDreamHero(
 
   const styleProfile = (project.styleProfile as StyleProfile | null) ?? null;
 
-  // Collect grounding images:
-  //   1. Hero shot (Tom's "this is what the room looks like today")
-  //   2. Up to 2 of the most recent room photos that aren't the hero
-  //   3. styleProfile.referenceImages (inspiration the user pasted in)
-  // Cap the total — too many image inputs dilute the signal AND
-  // multiply token cost on Nano Banana.
-  const groundingUrls: string[] = [];
+  // Collect grounding images, in priority order. Each one gets a
+  // labeled text part RIGHT BEFORE it in the prompt so Nano Banana
+  // knows which image is which role (today's state vs inspiration).
+  // Without the labels the model just sees a pile of images and
+  // averages them — exactly the failure mode in the first cut.
+  type Grounding = {
+    url: string;
+    role: "today-hero" | "today-context" | "inspiration";
+  };
+  const grounding: Grounding[] = [];
+
   if (project.heroShotPhotoId) {
     const [hero] = await db
       .select({ url: photos.url })
       .from(photos)
       .where(eq(photos.id, project.heroShotPhotoId));
-    if (hero?.url) groundingUrls.push(hero.url);
+    if (hero?.url) grounding.push({ url: hero.url, role: "today-hero" });
   }
   const recent = await db
-    .select({ id: photos.id, url: photos.url })
+    .select({
+      id: photos.id,
+      url: photos.url,
+      captionAi: photos.captionAi,
+      tags: photos.tags,
+    })
     .from(photos)
     .where(eq(photos.projectId, projectId))
     .orderBy(desc(photos.takenAt), desc(photos.createdAt))
-    .limit(6);
+    .limit(8);
   for (const p of recent) {
-    if (groundingUrls.length >= 3) break;
+    if (grounding.length >= 3) break;
     if (p.id === project.heroShotPhotoId) continue;
-    groundingUrls.push(p.url);
+    // Skip obvious non-room photos so we don't ground on a receipt or
+    // a paint chip. Conservative: if the AI caption *or* a tag mentions
+    // one of these, skip; otherwise include.
+    const haystack = [
+      p.captionAi ?? "",
+      ...(p.tags ?? []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    if (
+      haystack.includes("receipt") ||
+      haystack.includes("screenshot") ||
+      haystack.includes("paint chip") ||
+      haystack.includes("swatch")
+    ) {
+      continue;
+    }
+    // If we don't have a hero shot, the first eligible photo BECOMES
+    // the today-hero so the model has one strong anchor.
+    const role =
+      grounding.some((g) => g.role === "today-hero")
+        ? "today-context"
+        : "today-hero";
+    grounding.push({ url: p.url, role });
   }
   const refImages = styleProfile?.referenceImages ?? [];
   for (const url of refImages) {
-    if (groundingUrls.length >= 5) break;
-    groundingUrls.push(url);
+    if (grounding.length >= 5) break;
+    grounding.push({ url, role: "inspiration" });
   }
+
+  const hasRoomPhotos = grounding.some(
+    (g) => g.role === "today-hero" || g.role === "today-context",
+  );
+  const refImageCount = grounding.filter((g) => g.role === "inspiration").length;
 
   const prompt = buildDreamPrompt({
     projectTitle: project.title,
     brief: project.brief,
     styleProfile,
-    hasRoomPhotos: groundingUrls.length > 0,
-    refImageCount: refImages.length,
+    hasRoomPhotos,
+    refImageCount,
   });
 
-  // Gemini 2.5 Flash Image (Nano Banana) is a *language* model in the
-  // gateway taxonomy that emits images. Invoke via generateText with
-  // multipart messages (text + image parts) and the IMAGE response
-  // modality. Image arrives in result.files.
+  // Per-image labels. The structure is: leading framing text, then for
+  // each image a one-line role caption immediately followed by the
+  // image, then the spec block. Nano Banana respects this ordering for
+  // attribution.
+  const content: (
+    | { type: "text"; text: string }
+    | { type: "image"; image: URL }
+  )[] = [];
+  const intro = grounding.length
+    ? `You're the AI Foreman rendering a hero image for a project home page. The user has attached ${grounding.length} photo${grounding.length === 1 ? "" : "s"} — each is labeled below. Read every label before you compose the image.`
+    : `You're the AI Foreman rendering a hero image for a project home page.`;
+  content.push({ type: "text", text: intro });
+
+  let idx = 0;
+  for (const g of grounding) {
+    idx++;
+    const label =
+      g.role === "today-hero"
+        ? `[Image ${idx}] CURRENT STATE — this is the room as it looks TODAY. PRESERVE: the layout, the wall positions, the window placement, the doorways, the ceiling height, the room proportions, and a similar camera angle. CHANGE: surfaces and finishes per the spec at the end. Render this same room renovated, not a different room.`
+        : g.role === "today-context"
+          ? `[Image ${idx}] ADDITIONAL VIEW of the same room today — use it for context on what to preserve. Same room as the CURRENT STATE image.`
+          : `[Image ${idx}] INSPIRATION REFERENCE — pull color, material, and style cues from this image. DO NOT copy its layout, room shape, or framing. It's a vibe reference, not the target room.`;
+    content.push({ type: "text", text: label });
+    content.push({ type: "image", image: new URL(g.url) });
+  }
+
+  content.push({ type: "text", text: `SPEC:\n${prompt}` });
+
   const result = await generateText({
     model: DREAM_MODEL,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          ...groundingUrls.map(
-            (u) =>
-              ({
-                type: "image" as const,
-                image: new URL(u),
-              }) as const,
-          ),
-        ],
-      },
-    ],
+    messages: [{ role: "user", content }],
     providerOptions: {
       google: {
         responseModalities: ["IMAGE"],
