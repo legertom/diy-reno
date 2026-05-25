@@ -21,7 +21,8 @@ export default async function ForemanPicksPage({
     picks.dreamImageUrl ||
     picks.heroShot ||
     picks.moments.length > 0 ||
-    picks.heroOfTheWeek;
+    picks.heroOfTheWeek ||
+    picks.onThisDay.length > 0;
 
   return (
     <>
@@ -128,13 +129,53 @@ export default async function ForemanPicksPage({
               </section>
             )}
 
+            {/* "On this day" — quiet callback to a photo from 1 or 3
+                months back. Renders only when something matched, so
+                early projects don't see filler. */}
+            {picks.onThisDay.length > 0 && (
+              <section>
+                <div className="mx-auto max-w-5xl px-5 sm:px-8">
+                  <SectionHeader index="03" label="On this day" />
+                </div>
+                <div className="mx-auto mt-6 grid max-w-5xl gap-px bg-line-strong px-0 sm:grid-cols-2 sm:px-8 sm:gap-4 sm:bg-transparent">
+                  {picks.onThisDay.map((p) => (
+                    <Link
+                      key={p.photoId}
+                      href={`/p/${projectId}/photos`}
+                      className="group block"
+                    >
+                      <div className="relative aspect-[16/10] overflow-hidden sm:rounded-xl sm:border sm:border-line">
+                        <Image
+                          src={p.photoUrl}
+                          alt={p.caption ?? "On this day"}
+                          fill
+                          sizes="(max-width: 640px) 100vw, 50vw"
+                          className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/65 to-transparent p-3 text-white">
+                          <span className="text-[11px] font-semibold tracking-[0.18em] uppercase">
+                            {p.label}
+                          </span>
+                          {p.caption && (
+                            <span className="truncate text-[11px] opacity-80">
+                              {p.caption}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* "Foreman noticed" — moment + progress ROIs across the
                 whole project. Each crop is a CSS background-position
                 overlay (no extra Blob writes per §5.4). */}
             {picks.moments.length > 0 && (
               <section>
                 <div className="mx-auto max-w-5xl px-5 sm:px-8">
-                  <SectionHeader index="03" label="Foreman noticed" />
+                  <SectionHeader index="04" label="Foreman noticed" />
                   <p className="mt-3 max-w-xl text-sm text-ink-soft">
                     Small moments worth keeping. Tap one to jump to the full
                     photo on the timeline.
