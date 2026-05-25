@@ -10,7 +10,7 @@
 
 ## Overnight run 2026-05-24 — end-of-run handoff
 
-**Nine sub-phase deliverables shipped to prod across eight PRs**, all
+**Ten sub-phase deliverables shipped to prod across nine PRs**, all
 green through the §5 pipeline, live "Kitchen Renovation" intact through
 every migration.
 
@@ -25,6 +25,7 @@ every migration.
 | 5.13 v0 | Foreman's picks — capstone curation | [PR #6](https://github.com/legertom/diy-reno/pull/6) | `e08e432` |
 | 5.8 photo→task | One-tap defect ROI → task | [PR #7](https://github.com/legertom/diy-reno/pull/7) | `9f126b6` |
 | 5.13 "On this day" | Month-old / quarter-old photo callbacks | [PR #8](https://github.com/legertom/diy-reno/pull/8) | `a645e4f` |
+| 5.10 v0 | Paint chip → palette + paint-store search links | [PR #9](https://github.com/legertom/diy-reno/pull/9) | `c85766a` |
 
 **🚨 BLOCKED on 5.11 — see [`BLOCKED.md`](./BLOCKED.md).** Per §3 item 6,
 5.11 is the hard stop. I parked it with a concrete cost-cap question
@@ -40,8 +41,9 @@ gateway spend.
   the heavy bit; the hero-shot-of-the-week heuristic is already running
   inside the 5.13 picks page ("This week" section). Shoot suggestions
   could be a lightweight follow-up Foreman tool.
-- **5.10 paint-chip matching** — needs a curated paint DB or matching
-  API decision.
+- **5.10 inspiration → products / staging / friend's-kitchen sample**
+  — the paint-chip v0 shipped (PR #9). The remaining bullets need
+  per-request renders (5.11) or an external product index.
 - **5.12 annotation + measurement** — annotation drawing is significant
   client work; pairs better with 5.11 (same render path).
 - **5.13 remainder** — magazine cover, photo essay, time-lapse, "on
