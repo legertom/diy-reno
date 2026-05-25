@@ -405,9 +405,17 @@ user take the photos that will pay off later.
 
 ### 5.10  Choice matching by photo
 
+> ✓ **5.10 v0 (paint chip → matches) shipped** — pending merge
+> (PR #9, 2026-05-25). Vision extracts up to 5 dominant colors
+> from any photo; each gets a swatch + Sherwin-Williams / Benjamin
+> Moore / Behr deep-link searches. No external paint DB; no
+> recurring cost beyond the per-click vision call. Inspiration →
+> products, side-by-side staging, and friend's-kitchen sample
+> remain as follow-ups (the last two need 5.11).
+
 Vision-driven product / inspiration flows.
 
-- [ ] **Paint chip → matches** across brands + prices
+- [x] **Paint chip → matches** across brands + prices
 - [ ] **Inspiration photo** (magazine page, Pinterest screenshot) →
       real products the user can buy, in stock and in budget
 - [ ] **Two competing products side-by-side**, auto-staged in the
