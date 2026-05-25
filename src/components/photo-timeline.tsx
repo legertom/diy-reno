@@ -21,8 +21,11 @@ import {
   Loader2,
   Home,
   MessageSquare,
+  Plus,
+  Check,
 } from "lucide-react";
 import {
+  createTaskFromPhoto,
   deletePhoto,
   movePhoto,
   setHeroShot,
@@ -443,7 +446,11 @@ function LightboxMeta({
                 </span>
               ))}
             </div>
-            <ROIStrip photo={photo} />
+            <ROIStrip
+              projectId={projectId}
+              photo={photo}
+              canWrite={canWrite}
+            />
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <button
@@ -706,8 +713,17 @@ function severityWeight(s: "info" | "warn" | "stop"): number {
 }
 
 /** "Foreman noticed these…" — the 5.4 detail strip. Each ROI is a CSS
- *  object-position crop on the source image (no extra Blob writes). */
-function ROIStrip({ photo }: { photo: TimelinePhoto }) {
+ *  object-position crop on the source image (no extra Blob writes).
+ *  Defect ROIs get a "Make this a task" one-tap action (5.8 photo→task). */
+function ROIStrip({
+  projectId,
+  photo,
+  canWrite,
+}: {
+  projectId: string;
+  photo: TimelinePhoto;
+  canWrite: boolean;
+}) {
   if (!photo.rois || photo.rois.length === 0) return null;
   return (
     <div className="mt-3">
@@ -716,27 +732,73 @@ function ROIStrip({ photo }: { photo: TimelinePhoto }) {
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1">
         {photo.rois.map((roi) => (
-          <div
+          <ROITile
             key={roi.id}
-            className="w-32 shrink-0 space-y-1.5"
-            title={roi.caption}
-          >
-            <div
-              className="relative aspect-square overflow-hidden rounded-md border border-white/15 bg-white/5"
-              style={{
-                backgroundImage: `url(${photo.url})`,
-                backgroundSize: `${(1 / Math.max(roi.bbox.w, 0.05)) * 100}% ${(1 / Math.max(roi.bbox.h, 0.05)) * 100}%`,
-                backgroundPosition: `${(roi.bbox.x / Math.max(1 - roi.bbox.w, 0.05)) * 100}% ${(roi.bbox.y / Math.max(1 - roi.bbox.h, 0.05)) * 100}%`,
-                backgroundRepeat: "no-repeat",
-              }}
-            />
-            <div className="text-[10px] leading-snug opacity-80">
-              <span className="mr-1 opacity-60">{roi.category}</span>
-              {roi.caption}
-            </div>
-          </div>
+            projectId={projectId}
+            photo={photo}
+            roi={roi}
+            canWrite={canWrite}
+          />
         ))}
       </div>
+    </div>
+  );
+}
+
+function ROITile({
+  projectId,
+  photo,
+  roi,
+  canWrite,
+}: {
+  projectId: string;
+  photo: TimelinePhoto;
+  roi: import("@/lib/photo-vision-types").PhotoROI;
+  canWrite: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [created, setCreated] = useState<{ num: string } | null>(null);
+  const isDefect = roi.category === "defect";
+
+  return (
+    <div className="w-32 shrink-0 space-y-1.5" title={roi.caption}>
+      <div
+        className="relative aspect-square overflow-hidden rounded-md border border-white/15 bg-white/5"
+        style={{
+          backgroundImage: `url(${photo.url})`,
+          backgroundSize: `${(1 / Math.max(roi.bbox.w, 0.05)) * 100}% ${(1 / Math.max(roi.bbox.h, 0.05)) * 100}%`,
+          backgroundPosition: `${(roi.bbox.x / Math.max(1 - roi.bbox.w, 0.05)) * 100}% ${(roi.bbox.y / Math.max(1 - roi.bbox.h, 0.05)) * 100}%`,
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+      <div className="text-[10px] leading-snug opacity-80">
+        <span className="mr-1 opacity-60">{roi.category}</span>
+        {roi.caption}
+      </div>
+      {canWrite && isDefect && !created && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            startTransition(async () => {
+              const t = await createTaskFromPhoto({
+                projectId,
+                title: roi.caption,
+                photoId: photo.id,
+              });
+              if (t) setCreated({ num: t.num });
+            })
+          }
+          className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-semibold tracking-[0.14em] uppercase opacity-90 hover:bg-white/10 disabled:opacity-50"
+        >
+          <Plus className="size-3" /> Make a task
+        </button>
+      )}
+      {created && (
+        <div className="inline-flex w-full items-center justify-center gap-1 rounded-full border border-positive/40 bg-positive/15 px-2 py-0.5 text-[10px] font-semibold tracking-[0.14em] uppercase text-positive">
+          <Check className="size-3" /> Task #{created.num}
+        </div>
+      )}
     </div>
   );
 }

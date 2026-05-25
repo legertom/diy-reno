@@ -355,7 +355,7 @@ The tags from 5.3 finally earn their cost.
 - [x] Filter chips + free-text search across captions, tags, AND
       ROI captions (so a search hits "tile spacing" even if only an
       ROI mentioned it)
-- [ ] **Photo → task draft** — detected issues (mostly ROIs in the
+- [x] **Photo → task draft** — detected issues (mostly ROIs in the
       `defect` category) become one-tap-accept draft tasks
       ("touch up baseboard, NW corner")
 - [ ] Bulk select for moves/deletes

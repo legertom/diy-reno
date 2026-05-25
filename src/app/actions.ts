@@ -692,6 +692,71 @@ export async function resetForemanThread(
   revalidatePath(`/p/${projectId}/foreman`);
 }
 
+/** Phase 5.8: one-tap photo → task. Creates an unphased task at the
+ *  end of the project's task list, with the photo attached (so the
+ *  task's photo strip shows it immediately). Used by the lightbox
+ *  defect-ROI "Make this a task" button — the title comes from the
+ *  ROI caption the Foreman wrote. */
+export async function createTaskFromPhoto(input: {
+  projectId: string;
+  title: string;
+  detail?: string | null;
+  photoId: string;
+}): Promise<{ id: string; num: string } | null> {
+  const { user } = await assertCanWrite(input.projectId);
+  const db = getDb();
+
+  const cleanTitle = input.title.trim().slice(0, 200);
+  if (!cleanTitle) return null;
+
+  const [photo] = await db
+    .select({ id: photos.id, projectId: photos.projectId, taskId: photos.taskId })
+    .from(photos)
+    .where(eq(photos.id, input.photoId));
+  if (!photo || photo.projectId !== input.projectId) return null;
+
+  const existing = await db
+    .select({ num: tasks.num, position: tasks.position })
+    .from(tasks)
+    .where(eq(tasks.projectId, input.projectId));
+  const maxNum = existing.reduce((m, x) => {
+    const n = parseInt(x.num, 10);
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  const position = existing.reduce(
+    (m, x) => Math.max(m, x.position),
+    -1,
+  ) + 1;
+
+  const [created] = await db
+    .insert(tasks)
+    .values({
+      projectId: input.projectId,
+      phaseId: null,
+      num: String(maxNum + 1),
+      title: cleanTitle,
+      detail: input.detail?.trim() || null,
+      position,
+      assigneeUserId: user.id,
+    })
+    .returning({ id: tasks.id, num: tasks.num });
+
+  // Attach the source photo to the new task — if it had no task before,
+  // it now does; if it was already linked elsewhere, we leave that link
+  // alone (a photo only attaches to one task at a time today).
+  if (!photo.taskId) {
+    await db
+      .update(photos)
+      .set({ taskId: created.id })
+      .where(eq(photos.id, input.photoId));
+  }
+
+  revalidateProject(input.projectId);
+  revalidatePath(`/p/${input.projectId}/photos`);
+  revalidatePath(`/p/${input.projectId}/t/${created.id}`);
+  return created;
+}
+
 /** Nominate (or clear) a photo as the project's "today's view of the
  *  room" — the other end of the reality-vs-dream scrub on the home
  *  page (PHOTO_PLAN.md §5.5). Pass null to clear. Caller must own the
