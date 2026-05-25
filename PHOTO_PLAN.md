@@ -10,8 +10,9 @@
 
 ## Overnight run 2026-05-24 — end-of-run handoff
 
-**Six sub-phases shipped to prod.** Six PRs merged via the §5 pipeline,
-all green, live "Kitchen Renovation" intact through every migration.
+**Eight sub-phases shipped to prod.** Eight PRs merged via the §5
+pipeline, all green, live "Kitchen Renovation" intact through every
+migration.
 
 | # | Title | PR | Merge commit |
 |---|---|---|---|
@@ -20,7 +21,9 @@ all green, live "Kitchen Renovation" intact through every migration.
 | 5.3 + 5.4 substrate | Passive vision (caption/tags/ROIs/safety) | [PR #2](https://github.com/legertom/diy-reno/pull/2) | `23ba40f` |
 | 5.5 | Reality-vs-dream — today↔dream toggle | [PR #3](https://github.com/legertom/diy-reno/pull/3) | `a259195` |
 | 5.6 | Photo critique — "Ask the Foreman" lightbox | [PR #4](https://github.com/legertom/diy-reno/pull/4) | `509b468` |
-| 5.8 | Timeline search + filter chips | [PR #5](https://github.com/legertom/diy-reno/pull/5) | (rebased to main) |
+| 5.8 | Timeline search + filter chips | [PR #5](https://github.com/legertom/diy-reno/pull/5) | `c947818` |
+| 5.13 v0 | Foreman's picks — capstone curation | [PR #6](https://github.com/legertom/diy-reno/pull/6) | `e08e432` |
+| 5.8 photo→task | One-tap defect ROI → task | [PR #7](https://github.com/legertom/diy-reno/pull/7) | `9f126b6` |
 
 **🚨 BLOCKED on 5.11 — see [`BLOCKED.md`](./BLOCKED.md).** Per §3 item 6,
 5.11 is the hard stop. I parked it with a concrete cost-cap question
@@ -33,11 +36,21 @@ gateway spend.
   embedding column is in `photo` but no producer wired. See `BLOCKED.md`
   follow-ups.
 - **5.9 Foreman as photographer** — `getUserMedia()` framing overlay is
-  the heavy bit; suggestions could be a lightweight follow-up.
+  the heavy bit; the hero-shot-of-the-week heuristic is already running
+  inside the 5.13 picks page ("This week" section). Shoot suggestions
+  could be a lightweight follow-up Foreman tool.
 - **5.10 paint-chip matching** — needs a curated paint DB or matching
   API decision.
-- **5.12 / 5.13 / 5.14 / 5.15** — listed in `BLOCKED.md` follow-ups
-  with rough scope notes.
+- **5.12 annotation + measurement** — annotation drawing is significant
+  client work; pairs better with 5.11 (same render path).
+- **5.13 remainder** — magazine cover, photo essay, time-lapse, "on
+  this day," shareable postcards. Capstone-first landed; the rest are
+  follow-ups.
+- **5.14 floor-plan ingestion** — Property has `floor_plan_url` +
+  `rooms` ready. Vision pass + per-room confirmation UI is moderate
+  scope.
+- **5.15 closers** — end-of-project surface; no urgency until you're
+  near "done enough."
 
 **Tom-must-verify (every shipped PR has a "Tom-must-verify" section in
 its body — these only run in your authenticated browser):**
@@ -55,11 +68,18 @@ its body — these only run in your authenticated browser):**
   photo attached, ready to send.
 - 5.8: type "tile" in the timeline search → grid filters; safety chip
   filters to flagged photos.
+- 5.13: `/p/<id>/picks` (or brass "Foreman's picks" link on the home)
+  → dream + today paired; "This week" appears only when there's a
+  fresh moment ROI; "Foreman noticed" grid is CSS crops linking back
+  to the timeline.
+- 5.8 photo→task: lightbox defect ROI → tap "Make a task" → chip flips
+  to "Task #N"; verify on the project home that the task is there,
+  unphased, with the photo attached and you as assignee.
 
 **Exact next action when you resume:**
 1. Read `BLOCKED.md`. Pick option 1, 2, or 3 (or tell me something else).
-2. Mobile-verify the six shipped PRs against your phone — anything that
-   doesn't behave, open an issue and I'll fix it before §5.11.
+2. Mobile-verify the eight shipped PRs against your phone — anything
+   that doesn't behave, open an issue and I'll fix it before §5.11.
 3. With your `BLOCKED.md` answer in hand, the next branch is
    `phase-5-11-variations` (or whatever the option dictates).
 
