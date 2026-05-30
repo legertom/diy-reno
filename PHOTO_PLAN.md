@@ -8,6 +8,52 @@
 > `AGENTS.md`, `README.md`, and `PLAN.md` first; this plan assumes all
 > three.
 
+## Overnight run 2026-05-29 — end-of-run handoff
+
+**Five PRs shipped on top of the 2026-05-26 paint-preview decision.** All built green; all idempotent per the §5 pipeline (where applicable). Live "Kitchen Renovation" untouched. None merged yet — they're queued for your mobile-verify pass when you wake up.
+
+| # | Title | PR | Branch |
+|---|---|---|---|
+| 5.11 v0 | Paint preview — cap 5/day, ~$6/mo | [PR #12](https://github.com/legertom/diy-reno/pull/12) | `phase-5-11-paint-preview-v0` |
+| 5.7 v0 | Same-angle pairing → "Then & now" diptychs | [PR #13](https://github.com/legertom/diy-reno/pull/13) | `phase-5-7-same-angle-pairing` |
+| 5.13 remainder v0 | Magazine cover + shareable postcard | [PR #14](https://github.com/legertom/diy-reno/pull/14) | `phase-5-13-magazine-postcard` |
+| 5.14 v0 | Floor-plan ingestion → owner-confirmed rooms | [PR #15](https://github.com/legertom/diy-reno/pull/15) | `phase-5-14-floor-plan-ingestion` |
+| 5.9 v0 | Lightweight shoot-suggestion Foreman tool | [PR #16](https://github.com/legertom/diy-reno/pull/16) | `phase-5-9-shoot-suggestions` |
+
+**Schema change in this run (PR #12 only):** new `generation_log` table (project_id, user_id, kind, cost_estimate_cents, created_at). Migration `drizzle/0008_generation_log.sql` — purely additive, CREATE TABLE IF NOT EXISTS + pg_constraint guards. §5 pipeline gate applies it on the preview build of PR #12 with the throwaway-Neon-branch idempotency check; subsequent PRs (#13–#16) re-apply through the same gate as a no-op.
+
+**Spend ceiling held:**
+- Paint preview: 5/day per user; cache hits (same color, same photo) free forever — `generation_log` counts only fresh renders.
+- Same-angle producer: `google/text-embedding-004` over the AI caption, once per upload, sub-penny each.
+- Magazine cover + postcard: zero new AI spend (real text via Satori, dream image as base).
+- Floor-plan ingestion: one Gemini Flash call per upload, explicit user trigger.
+- Shoot suggestions: pure heuristic, zero AI.
+
+**Hard-stops still hard:**
+- Material swap, empty room, side-by-side, product insertion — `BLOCKED-2.md` required before any of them.
+- 5.15 closers — no urgency before "done enough."
+- 5.12 annotation + measurement — skipped this run; the cheapest v0 still needs a schema change + meaningful canvas work, didn't fit.
+
+**Deferred follow-ups (not blocked, just out of scope this run):**
+- 5.7 ROI-level pairing (per-region match across time when wide-shot framings drift).
+- 5.7 manual pair / unpair override.
+- 5.13 photo essay (auto-curated editorial across N photos) + time-lapse stitch.
+- 5.14 adjacencies + dimensions from the floor plan.
+- 5.9 `getUserMedia()` live framing overlay.
+- 5.12 annotation drawing + measurement-from-photo.
+
+**Exact next action when you resume:**
+1. **Merge order doesn't matter** — none of the five PRs depend on another; each branches from main and lints/builds independently. Merge in any order you like.
+2. **Mobile-verify each PR's `Tom-must-verify` section** on your phone. The PR bodies have the specific gestures + expected behavior; report regressions as comments and I'll fix on next run.
+3. **5.11 cap audit** — open a project's photo lightbox, try 5 distinct paint colors in one day, then try a 6th. The 6th should land in the friendly "back tomorrow" message, not a 500. After tonight UTC rolls, the count should reset.
+4. **5.7 backfill check** — `/p/<id>/photos` lazy-fires `backfillProjectEmbeddings(cap=10)` on each visit. Visit ~3 times to embed legacy photos; clusters should start appearing within a few visits if your kitchen has 2+ photos of the same wall.
+5. If you want a sixth run, the natural next items are: **5.7 ROI-level pairing** (extend the producer to embed each ROI; use those for finer-grained clusters), **5.14 dimensions/adjacencies** (extend the vision schema), or **5.12 v1** (decide on a schema for `photo_pin` and ship pin-a-comment + Foreman annotation). All three are unlocked.
+
+**Things to be honest about:**
+- I cannot drive your Google login, so every "verified" claim is build-clean + lint-clean + tsc-clean + (where applicable) §5-pipeline-green. The visual / behavioral check is yours.
+- Each Vercel preview build re-applies the §5 pipeline. Five preview branches → five gate-runs against prod. Each ~3s of Neon branch activity; cheap but visible in Neon usage logs.
+- The dream-hero quality reassessment after 20 renders (PHOTO_PLAN.md §5 Q1 / §4) still hasn't run — I haven't generated 20 dreams to audit. Whenever your dream count hits 20, audit "same kitchen evolving" against §5.2's exit criterion; if failing, FLUX Kontext is the named fallback (flip `DREAM_MODEL` env var; paint preview follows automatically via `PAINT_PREVIEW_MODEL` fallback to `DREAM_MODEL`).
+
 ## Overnight run 2026-05-24 — end-of-run handoff
 
 **Ten sub-phase deliverables shipped to prod across nine PRs**, all
