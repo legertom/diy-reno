@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { ChevronLeft } from "lucide-react";
 import {
   getProjectOr404,
@@ -8,6 +9,11 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { Eyebrow, EmptyState } from "@/components/ui";
 import { PhotoTimeline } from "@/components/photo-timeline";
+import { DiptychStrip } from "@/components/diptych-strip";
+import {
+  backfillProjectEmbeddings,
+  findSameAnglePairs,
+} from "@/lib/photo-embeddings";
 
 export default async function PhotosPage({
   params,
@@ -17,7 +23,26 @@ export default async function PhotosPage({
   const { projectId } = await params;
   const { user, role, project } = await getProjectOr404(projectId);
   const writable = canWriteRole(role);
-  const { photos, rooms, tasks } = await getProjectTimeline(projectId);
+  const [{ photos, rooms, tasks }, clusters] = await Promise.all([
+    getProjectTimeline(projectId),
+    findSameAnglePairs(projectId),
+  ]);
+
+  // Lazy backfill: kick off embedding for any photos whose vision
+  // already ran but the embedding column is still null (legacy data
+  // from before 5.7 wired the producer). Capped at 10 per page load
+  // to keep cost predictable. Fires AFTER the response so the page
+  // never waits on it.
+  after(async () => {
+    try {
+      const n = await backfillProjectEmbeddings({ projectId, cap: 10 });
+      if (n > 0) {
+        console.log(`[5.7] backfilled ${n} photo embeddings for ${projectId}`);
+      }
+    } catch (e) {
+      console.error("[5.7] embedding backfill failed:", e);
+    }
+  });
 
   return (
     <>
@@ -51,14 +76,17 @@ export default async function PhotosPage({
             <EmptyState title="Nothing here yet" />
           </div>
         ) : (
-          <PhotoTimeline
-            projectId={projectId}
-            photos={photos}
-            rooms={rooms}
-            tasks={tasks}
-            canWrite={writable}
-            heroShotPhotoId={project.heroShotPhotoId}
-          />
+          <>
+            <DiptychStrip clusters={clusters} />
+            <PhotoTimeline
+              projectId={projectId}
+              photos={photos}
+              rooms={rooms}
+              tasks={tasks}
+              canWrite={writable}
+              heroShotPhotoId={project.heroShotPhotoId}
+            />
+          </>
         )}
       </main>
     </>

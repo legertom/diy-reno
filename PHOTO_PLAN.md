@@ -435,18 +435,27 @@ work without the user typing a paragraph.
 
 ### 5.7  Same-angle pairing — the unprompted "wow"
 
+> ✓ **5.7 v0 shipped** — pending merge
+> (`phase-5-7-same-angle-pairing`). Embedding producer wired into
+> `runVisionOnPhoto` via `google/text-embedding-004` over a
+> caption+tags+ROIs signature string; cosine-≥0.85 clusters surface as
+> a "Then & now" diptych strip at the top of `/p/<id>/photos`. Lazy
+> backfill (cap 10) handles legacy photos. ROI-level pairing,
+> per-cluster timeline scrubber, and manual pair/unpair override
+> remain as follow-ups.
+
 Uses the embeddings from 5.3 (whole-image) and 5.4 (per-ROI).
 
-- [ ] On upload, match against prior project photos within a
+- [x] On upload, match against prior project photos within a
       conservative threshold (**0.85 cosine similarity to start**;
       tune from telemetry — §5)
-- [ ] When matched, **auto-create a progress diptych** and surface
+- [x] When matched, **auto-create a progress diptych** and surface
       it on the timeline
 - [ ] **ROI-level pairing** — match individual regions across time
       even if the wide-shot framings drifted (compounds 5.4)
 - [ ] **Timeline scrubber** through a single viewpoint over time
 - [ ] Manual pair / unpair override
-- [ ] Threshold defaults conservative — **false negatives over false
+- [x] Threshold defaults conservative — **false negatives over false
       positives.** A wrong pair is worse than no pair.
 
 Exit: progress reveals itself without the user filing anything.

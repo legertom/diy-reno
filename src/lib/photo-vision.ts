@@ -12,12 +12,10 @@ import {
  *  Cheap multimodal pass: caption / tags / ROIs / safety in one call.
  *  Override with VISION_MODEL if Tom ever wants to swap.
  *
- *  Note on embeddings: §5.3's "vision embeddings cached on the row"
- *  feeds 5.7's same-angle pairing. For v1 of this PR the embedding
- *  column is left null (no consumer yet); 5.7 will add the embedding
- *  call (separate model, separate budget). The schema column is
- *  already in place so 5.7 is purely additive code.
- */
+ *  Phase 5.7 wires a second cheap call (text-embedding-004 over the
+ *  caption + tags + ROI captions) right after the vision update lands.
+ *  Embedding failure does NOT fail the whole vision pass — the photo
+ *  still gets caption/tags/ROIs even if the embedding step trips. */
 const VISION_MODEL = process.env.VISION_MODEL || "google/gemini-2.5-flash";
 
 const SYSTEM = `You are the same warm-honest Foreman the user already chats with — a friend who's done a lot of these jobs and isn't shy about saying "stop, call a licensed pro" when the work is over their head. Look at one renovation photo and return five things:
@@ -67,13 +65,30 @@ export async function runVisionOnPhoto(photoId: string): Promise<void> {
       .set({
         captionAi: parsed.caption,
         tags: parsed.tags,
-        embedding: parsed.embedding.length ? parsed.embedding : null,
+        // Embedding is computed below from the freshly-written caption
+        // + tags + ROIs; the LLM-returned embedding (always empty) is
+        // ignored. Leaving the column null here so a failed embedPhoto
+        // call doesn't strand a stale value.
+        embedding: null,
         rois: parsed.rois,
         safetyFlags: parsed.safetyFlags,
         visionCompletedAt: new Date(),
         visionError: null,
       })
       .where(eq(photos.id, photoId));
+
+    // Phase 5.7: same-angle pairing producer. Best-effort — a
+    // text-embedding-004 failure shouldn't fail the whole vision pass
+    // (the caption/tags/ROIs are already saved and useful on their own).
+    try {
+      const { embedPhoto } = await import("@/lib/photo-embeddings");
+      await embedPhoto(photoId);
+    } catch (e) {
+      console.warn(
+        "[5.7] embedPhoto failed; vision pass still succeeded:",
+        e,
+      );
+    }
   } catch (e) {
     const message = (e as Error).message || "vision failed";
     await db
