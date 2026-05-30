@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { properties } from "@/db/schema";
 import { getProjectOr404, getMembers } from "@/lib/projects";
 import { AppHeader } from "@/components/app-header";
 import { Card, Eyebrow, SectionHeader } from "@/components/ui";
 import { MembersManager } from "@/components/members-manager";
+import { FloorPlanSection } from "@/components/floor-plan-section";
 
 export default async function ProjectSettingsPage({
   params,
@@ -14,6 +18,25 @@ export default async function ProjectSettingsPage({
   const data = await getMembers(projectId);
   if (!data) notFound();
   const isOwner = role === "owner";
+
+  // Phase 5.14: load the property for the floor-plan section. Only
+  // surfaced when the owner is also viewing — Property writes are
+  // owner-only (assertOwnsProperty), and there's no value rendering
+  // a non-actionable section to a viewer/editor.
+  const property =
+    isOwner && project.propertyId
+      ? (
+          await getDb()
+            .select({
+              id: properties.id,
+              name: properties.name,
+              floorPlanUrl: properties.floorPlanUrl,
+              rooms: properties.rooms,
+            })
+            .from(properties)
+            .where(eq(properties.id, project.propertyId))
+        )[0]
+      : null;
 
   return (
     <>
@@ -49,6 +72,20 @@ export default async function ProjectSettingsPage({
           )}
           </Card>
         </section>
+
+        {property && (
+          <section className="mt-12">
+            <SectionHeader index="02" label="Floor plan & rooms" />
+            <Card frame className="mt-6 p-5 sm:p-6">
+              <FloorPlanSection
+                propertyId={property.id}
+                propertyName={property.name}
+                floorPlanUrl={property.floorPlanUrl}
+                rooms={property.rooms ?? []}
+              />
+            </Card>
+          </section>
+        )}
       </main>
     </>
   );

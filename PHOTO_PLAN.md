@@ -507,14 +507,23 @@ Exit: progress feels narrated. The reality-TV-website lens lands.
 
 ### 5.14  Floor-plan ingestion
 
+> ✓ **5.14 v0 shipped** — pending merge
+> (`phase-5-14-floor-plan-ingestion`). Owner-only "Floor plan & rooms"
+> section on `/p/<id>/settings`. Direct server-side upload to Blob
+> (`properties/{p}/floorplan/...`); single Gemini Flash vision pass
+> returns a suggested room list; owner confirms each (toggle +
+> editable name) before `property.rooms` is persisted.
+> Adjacencies + dimensions are deferred — v0 ships rooms only.
+
 The final PLAN.md §5 line. Vision → structured Property data.
 
-- [ ] User uploads a sketch or contractor drawing
+- [x] User uploads a sketch or contractor drawing
 - [ ] Vision extracts: room list, adjacencies, approximate dimensions
-      where labeled
-- [ ] Writes into Property's nullable floor-plan / measurement fields
+      where labeled _(v0 ships rooms only; adjacencies + dimensions
+      deferred)_
+- [x] Writes into Property's nullable floor-plan / measurement fields
       (already provisioned in Phase 1)
-- [ ] Owner confirms each extracted room before it lands
+- [x] Owner confirms each extracted room before it lands
 
 Exit: Property carries structured rooms without manual entry.
 
