@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { Sparkles, RefreshCcw, Info } from "lucide-react";
-import { regenerateDream } from "@/app/actions";
+import { getPaintSpend, regenerateDream } from "@/app/actions";
 
 /** The headline of the project home post-Phase-5.2. When set, it is
  *  the kitchen-to-be. When unset, it is the gentle invitation to
@@ -39,6 +39,28 @@ export function DreamHero({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [whyOpen, setWhyOpen] = useState(false);
+  const [spend, setSpend] = useState<{
+    used: number;
+    cap: number;
+    remaining: number;
+  } | null>(null);
+
+  // Fetch today's paint-preview spend lazily — only when the user opens
+  // the panel for the first time. Owners only (viewers can't render).
+  useEffect(() => {
+    if (!whyOpen || !canWrite || spend) return;
+    let cancelled = false;
+    void getPaintSpend()
+      .then((s) => {
+        if (!cancelled) setSpend(s);
+      })
+      .catch(() => {
+        // Quiet failure — the prompt is still useful without the spend.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [whyOpen, canWrite, spend]);
 
   function regenerate() {
     setError(null);
@@ -142,10 +164,31 @@ export function DreamHero({
                 </button>
               )}
             </div>
-            {whyOpen && prompt && (
-              <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-line bg-paper-2 p-3 text-xs leading-relaxed whitespace-pre-wrap text-ink-soft">
-                {prompt}
-              </pre>
+            {whyOpen && (
+              <div className="mt-3 space-y-2">
+                {canWrite && spend && (
+                  <p className="font-normal tracking-normal normal-case text-[12px] text-ink-soft">
+                    <span className="font-semibold tracking-[0.16em] uppercase text-[10px] text-ink-faint">
+                      Paint previews today
+                    </span>{" "}
+                    · {spend.used} of {spend.cap}
+                    {spend.remaining === 0 ? (
+                      <span className="ml-2 text-ink-faint">
+                        (back tomorrow)
+                      </span>
+                    ) : (
+                      <span className="ml-2 text-ink-faint">
+                        ({spend.remaining} left)
+                      </span>
+                    )}
+                  </p>
+                )}
+                {prompt && (
+                  <pre className="max-h-48 overflow-auto rounded-lg border border-line bg-paper-2 p-3 text-xs leading-relaxed whitespace-pre-wrap text-ink-soft">
+                    {prompt}
+                  </pre>
+                )}
+              </div>
             )}
             {error && <p className="mt-2 text-xs text-danger">{error}</p>}
           </div>

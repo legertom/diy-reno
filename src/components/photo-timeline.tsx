@@ -25,14 +25,17 @@ import {
   Check,
   Palette,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import {
   createTaskFromPhoto,
   deletePhoto,
   extractPhotoPalette,
   movePhoto,
+  previewPaint,
   setHeroShot,
   updatePhotoMeta,
+  type PreviewPaintResult,
 } from "@/app/actions";
 import type { TimelinePhoto } from "@/lib/projects";
 import { OPEN_FOREMAN_EVENT } from "@/components/foreman-bubble";
@@ -516,6 +519,7 @@ function LightboxMeta({
               </button>
               {canWrite && (
                 <>
+                  <PaintPreviewButton photoId={photo.id} />
                   <button
                     type="button"
                     onClick={() => setEditing(true)}
@@ -688,6 +692,196 @@ function LightboxMeta({
         )}
       </div>
     </div>
+  );
+}
+
+/** Phase 5.11 v0 "Try this in your room" entrypoint. Sparkles-icon-gated,
+ *  canWrite-only — never default. Opens an inline panel of preset paint
+ *  colors plus a freeform hex input. Server cap is 5/day per user; the
+ *  panel surfaces remaining renders right above the swatches so the user
+ *  always knows what they have left. Cached previews (same color, same
+ *  photo) don't count toward the cap. */
+const PAINT_PRESETS: { hex: string; name: string }[] = [
+  { hex: "#f3efe6", name: "Soft white" },
+  { hex: "#e6dec9", name: "Warm cream" },
+  { hex: "#c7c0ad", name: "Stone" },
+  { hex: "#9aa999", name: "Sage" },
+  { hex: "#7d8d96", name: "Slate blue" },
+  { hex: "#3a4a5a", name: "Hale navy" },
+  { hex: "#c69f7b", name: "Warm tan" },
+  { hex: "#4a3a35", name: "Espresso" },
+];
+
+function PaintPreviewButton({ photoId }: { photoId: string }) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<PreviewPaintResult | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [hexInput, setHexInput] = useState("");
+
+  async function tryColor(rawColor: string) {
+    setChosen(rawColor);
+    setPending(true);
+    try {
+      const r = await previewPaint({ photoId, color: rawColor });
+      setResult(r);
+    } catch (e) {
+      setResult({
+        ok: false,
+        reason: "bad_color",
+        message: (e as Error).message || "Could not render preview",
+        spend: result?.spend ?? { used: 0, cap: 5, remaining: 5 },
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function reset() {
+    setResult(null);
+    setChosen(null);
+    setHexInput("");
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={
+          open
+            ? "inline-flex items-center gap-1 rounded-full border border-brass/60 bg-brass/15 px-3 py-1.5 text-[12px] text-brass hover:bg-brass/25"
+            : "inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[12px] hover:bg-white/10"
+        }
+      >
+        <Sparkles className="size-3" />
+        Try this in your room
+      </button>
+      {open && (
+        <div className="basis-full rounded-lg border border-white/10 bg-white/[0.03] p-3">
+          <PaintCapLine spend={result?.spend ?? null} />
+          {result?.ok ? (
+            <div className="space-y-2">
+              <div className="overflow-hidden rounded-md border border-white/15 bg-black">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={result.url}
+                  alt={`Paint preview ${chosen ?? ""}`}
+                  className="block max-h-[60vh] w-full object-contain"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[12px]">
+                <span className="opacity-80">
+                  Painted{" "}
+                  <span className="font-mono">{chosen}</span>
+                </span>
+                {result.cached && (
+                  <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] opacity-70">
+                    cached · free
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="ml-auto rounded-full border border-white/20 px-3 py-1 text-[11px] hover:bg-white/10"
+                >
+                  Try another
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {result && !result.ok && (
+                <p
+                  className={
+                    result.reason === "cap"
+                      ? "rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100"
+                      : "rounded-md border border-red-400/40 bg-red-500/10 px-3 py-2 text-[12px] text-red-100"
+                  }
+                  role="alert"
+                >
+                  {result.message}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {PAINT_PRESETS.map((c) => (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => tryColor(c.hex)}
+                    className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-2 py-1 text-[11px] hover:bg-white/10 disabled:opacity-50"
+                    title={c.hex}
+                  >
+                    <span
+                      className="size-4 rounded-full border border-white/20"
+                      style={{ backgroundColor: c.hex }}
+                      aria-hidden="true"
+                    />
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = hexInput.trim();
+                  if (v) void tryColor(v);
+                }}
+              >
+                <input
+                  type="text"
+                  value={hexInput}
+                  onChange={(e) => setHexInput(e.target.value)}
+                  placeholder="#7c9474"
+                  className="flex-1 rounded-md border border-white/20 bg-white/[0.04] px-2 py-1 text-[12px] font-mono outline-none focus:border-brass"
+                  inputMode="text"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoComplete="off"
+                />
+                <button
+                  type="submit"
+                  disabled={pending || !hexInput.trim()}
+                  className="rounded-full border border-white/20 px-3 py-1 text-[11px] hover:bg-white/10 disabled:opacity-50"
+                >
+                  {pending ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    "Try"
+                  )}
+                </button>
+              </form>
+              {pending && (
+                <p className="text-[11px] opacity-70">
+                  <Loader2 className="mr-1 inline size-3 animate-spin" />
+                  Painting {chosen}… (~3–5s)
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** "3 of 5 today" line above the swatches. Quiet, informational —
+ *  matches the no-pressure UI rule. Hidden until we have a spend snapshot
+ *  to avoid flashing "0 of 5" before the first render. */
+function PaintCapLine({
+  spend,
+}: {
+  spend: { used: number; cap: number; remaining: number } | null;
+}) {
+  if (!spend) return null;
+  return (
+    <p className="mb-2 text-[10px] font-semibold tracking-[0.18em] uppercase opacity-60">
+      {spend.used} of {spend.cap} renders today
+      {spend.remaining === 0 && " · back tomorrow"}
+    </p>
   );
 }
 

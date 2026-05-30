@@ -467,6 +467,41 @@ export const chatThreads = pgTable(
   (c) => [index("chat_thread_idx").on(c.projectId, c.taskId)],
 );
 
+/** Phase 5.11 paint preview: per-call audit + server-side cap enforcement.
+ *  One row per successful render. The cap query counts rows for
+ *  (user_id, kind) within today's UTC window; if >= cap, the action
+ *  refuses before spending. `kind` is forward-compatible — only
+ *  'paint_preview' ships today (Tom's option-1 pick, BLOCKED.md
+ *  Resolution); other §5.11 variants remain parked behind a second
+ *  decision (PHOTO_EXECUTION_PROMPT.md §3 item 7). */
+export const generationLogs = pgTable(
+  "generation_log",
+  {
+    id: uuid().primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "paint_preview" today; widens when other §5.11 variants ship. */
+    kind: text("kind").notNull(),
+    /** ~4 cents per Gemini 2.5 Flash Image call; recorded per-row so a
+     *  future variant with a different cost model (product insertion ~1.5×)
+     *  computes correctly. */
+    costEstimateCents: integer("cost_estimate_cents").notNull(),
+    createdAt: now(),
+  },
+  (g) => [
+    index("generation_log_user_kind_idx").on(
+      g.userId,
+      g.kind,
+      g.createdAt,
+    ),
+    index("generation_log_project_idx").on(g.projectId, g.createdAt),
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /*  Relations                                                           */
 /* ------------------------------------------------------------------ */
@@ -536,3 +571,4 @@ export type Photo = typeof photos.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type ForemanMemory = typeof foremanMemories.$inferSelect;
 export type ChatThread = typeof chatThreads.$inferSelect;
+export type GenerationLog = typeof generationLogs.$inferSelect;
