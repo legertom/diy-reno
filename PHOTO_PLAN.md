@@ -8,33 +8,86 @@
 > `AGENTS.md`, `README.md`, and `PLAN.md` first; this plan assumes all
 > three.
 
-## Overnight run 2026-05-29 — end-of-run handoff
+## Overnight run 2026-05-29/30 — MERGED + DEPLOYED ✓
 
-**Five PRs shipped on top of the 2026-05-26 paint-preview decision.** All built green; all idempotent per the §5 pipeline (where applicable). Live "Kitchen Renovation" untouched. None merged yet — they're queued for your mobile-verify pass when you wake up.
+**Five sub-phases shipped to prod across five PRs**, all green through the §5 pipeline, live "Kitchen Renovation" intact. Merged + deployed 2026-05-30 03:30 UTC. Prod: https://diy-reno.vercel.app · Deploy: https://vercel.com/legertoms-projects/diy-reno/FZa4sJTFanYGKoCKs5Ez4STSWA2u
 
-| # | Title | PR | Branch |
+| # | Title | PR | Merge commit |
 |---|---|---|---|
-| 5.11 v0 | Paint preview — cap 5/day, ~$6/mo | [PR #12](https://github.com/legertom/diy-reno/pull/12) | `phase-5-11-paint-preview-v0` |
-| 5.7 v0 | Same-angle pairing → "Then & now" diptychs | [PR #13](https://github.com/legertom/diy-reno/pull/13) | `phase-5-7-same-angle-pairing` |
-| 5.13 remainder v0 | Magazine cover + shareable postcard | [PR #14](https://github.com/legertom/diy-reno/pull/14) | `phase-5-13-magazine-postcard` |
-| 5.14 v0 | Floor-plan ingestion → owner-confirmed rooms | [PR #15](https://github.com/legertom/diy-reno/pull/15) | `phase-5-14-floor-plan-ingestion` |
-| 5.9 v0 | Lightweight shoot-suggestion Foreman tool | [PR #16](https://github.com/legertom/diy-reno/pull/16) | `phase-5-9-shoot-suggestions` |
+| 5.11 v0 | Paint preview — Sparkles in lightbox, cap 5/day, ~$6/mo | [PR #12](https://github.com/legertom/diy-reno/pull/12) | `d975be6` |
+| 5.7 v0 | Same-angle pairing → "Then & now" diptychs | [PR #13](https://github.com/legertom/diy-reno/pull/13) | `4d235fc` |
+| 5.13 remainder v0 | Magazine cover + shareable postcard | [PR #14](https://github.com/legertom/diy-reno/pull/14) | `5514f0c` |
+| 5.14 v0 | Floor-plan ingestion → owner-confirmed rooms | [PR #15](https://github.com/legertom/diy-reno/pull/15) | `94af9aa` |
+| 5.9 v0 | Lightweight shoot-suggestion Foreman tool | [PR #16](https://github.com/legertom/diy-reno/pull/16) | `181e03a` |
 
-**Schema change in this run (PR #12 only):** new `generation_log` table (project_id, user_id, kind, cost_estimate_cents, created_at). Migration `drizzle/0008_generation_log.sql` — purely additive, CREATE TABLE IF NOT EXISTS + pg_constraint guards. §5 pipeline gate applies it on the preview build of PR #12 with the throwaway-Neon-branch idempotency check; subsequent PRs (#13–#16) re-apply through the same gate as a no-op.
+### Activity log (chronological, 2026-05-29/30)
 
-**Spend ceiling held:**
+This is the full move-by-move of the run so the next chat can pick up cold.
+
+1. **Read the operating contract** (`PHOTO_EXECUTION_PROMPT.md` rev 4) + `AGENTS.md`, `README.md`, `PLAN.md`, `PHOTO_PLAN.md`, the three memory files, the photos table schema, the upload route, the existing photo uploader component, the registerPhoto/deletePhoto actions, and `BLOCKED.md` resolution.
+2. **Branched `phase-5-11-paint-preview-v0`** from `0d3905a`. Spawned an Explore subagent to map the dream-render path (PR #2 `23ba40f`) + the lightbox component shape — got back exact file:line references for AI Gateway client pattern, Blob caching pattern, and `LightboxMeta` button-bar placement.
+3. **Authored the `generation_log` migration:** edited `src/db/schema.ts` to add the table + indexes, ran `npm run db:generate`, hand-reviewed the output into `drizzle/0008_generation_log.sql` (CREATE TABLE IF NOT EXISTS + `pg_constraint` guards + CREATE INDEX IF NOT EXISTS), renamed from auto-generated `0008_old_betty_brant`, updated `drizzle/meta/_journal.json`.
+4. **Built `src/lib/paint-preview.ts`:** `renderPaintPreview({photoId, color, userId})` via `google/gemini-2.5-flash-image` (mirrors dream.ts model + grounding pattern), deterministic blob cache at `projects/{p}/paint/{photoId}/{hex}.png`, `head()` cache lookup → free returns, server-side 5/day cap counted from `generation_log` BEFORE the model call, log row inserted only on render success. Exposed `PaintCapExceededError` + `getPaintSpendToday`.
+5. **Wired the server actions:** `previewPaint` (tagged-union result for friendly cap message; throws on auth/error) and `getPaintSpend` (read-only snapshot) in `src/app/actions.ts`. Resolves photo → project, runs `assertCanWrite`, returns `{ok, url, cached, spend}`.
+6. **Lightbox entrypoint:** added Sparkles "Try this in your room" button + inline panel to `LightboxMeta` inside the existing `canWrite` block (next to Edit). 8 preset paint colors + hex input; inline render at up to 60vh; `cached · free` badge; "Try another" reset; cap message rendered inline (never 500).
+7. **Dream-hero spend surface:** "Paint previews today · N of 5 (M left)" line in the "Why this image?" panel (`src/components/dream-hero.tsx`). Owners only; lazy `useEffect` fetch via `getPaintSpend()` on first panel open.
+8. **5.11 verification:** `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` succeeds with all 17 routes. Started dev, navigated `/signin` at 390×844 — 500'd because `.env.local` lacks `DATABASE_URL` (sensitive Vercel env, can't `pull`). Documented as Tom-must-verify since all paint-preview UI is auth-gated. Killed dev server.
+9. **Committed + pushed 5.11 → PR #12.** Vercel preview build came back green (Vercel: pass, GitGuardian: pass). The §5 pipeline applied `0008_generation_log.sql` cleanly through the throwaway-Neon-branch idempotency gate.
+10. **Branched `phase-5-7-same-angle-pairing`** from main. Read `photo-vision.ts` (existing producer skeleton) and the photos page.
+11. **Built `src/lib/photo-embeddings.ts`:** `embedPhoto(photoId)` via `google/text-embedding-004` over a `buildSignature` string (caption + tags + ROI captions). No-op when caption_ai is missing. `findSameAnglePairs(projectId, 0.85)` does N×N cosine + union-find clustering (so a tight triangle becomes one cluster, not three pairs). Returns display-ready members (url, captionAi, takenAt). `backfillProjectEmbeddings(cap=10)` loops missing-embedding photos.
+12. **Producer wired** into `runVisionOnPhoto` inside the existing try block — best-effort dynamic import + try/catch so an embedding failure doesn't fail the whole vision pass.
+13. **Built `src/components/diptych-strip.tsx`:** server-rendered editorial "Then & now" section with First / Latest paired side-by-side, day-span label ("12 days apart"), "+N between" when 3+ photos. Eyebrow + display type + dim-rule per Phase 3.
+14. **Photos page wiring:** `findSameAnglePairs` runs alongside `getProjectTimeline` via `Promise.all`; `DiptychStrip` renders above the grid; `after()` fires `backfillProjectEmbeddings(cap=10)` so each visit catches up legacy photos without blocking.
+15. **5.7 verification:** tsc + lint + build all clean. Committed + pushed → PR #13.
+16. **Branched `phase-5-13-magazine-postcard`** from main. Pivoted approach away from generative magazine cover (image models hallucinate text) toward editorial composition via `next/og` `ImageResponse` over the cached dream image — real text via Satori, zero new AI spend. Read the next/og docs from `node_modules/next/dist/docs/` first per AGENTS.md.
+17. **Built two OG routes:** `/api/cover/[projectId]/og/route.tsx` (1200×1600 portrait, masthead + headline + month sigil) and `/api/postcard/[projectId]/og/route.tsx` (1600×1000 landscape with right-side caption column, "Wish you were here." headline, double hairline frame). Both auth-gated (project member only), 1-hour browser cache, Geist fonts loaded from `node_modules/geist/dist/fonts/geist-sans` (regular + bold) so the cover stays on the Phase-3 brand.
+18. **Initially wrote routes as `.ts`** → tsc errored on JSX → renamed both to `.tsx`. Lesson logged: OG routes that return ImageResponse need `.tsx` for the JSX.
+19. **Picks page wiring:** new "Cover & postcard" section (index 05) renders both endpoints as `<img>` with explicit dimensions to prevent CLS. Section only renders when there's a dream image. Long-press → save on mobile.
+20. **5.13 verification:** tsc + lint + build all clean (cover + postcard routes register as `ƒ` dynamic). Committed + pushed → PR #14.
+21. **Branched `phase-5-14-floor-plan-ingestion`** from main. Confirmed Phase 1 provisioned `property.floor_plan_url` + `property.rooms` so no schema change needed.
+22. **Built `src/lib/floor-plan.ts`:** `extractRoomsFromFloorPlan(propertyId)` runs one `google/gemini-2.5-flash` call with structured output `{rooms: [{name, notes?}]}`. System prompt enforces Title Case, no architectural codes, skip closets/shafts unless labeled, return empty array if not a floor plan.
+23. **Added three actions** in `actions.ts`: `uploadFloorPlan` (FormData, owner-gated, server-side `put()` to `properties/{p}/floorplan/{stamp}.{ext}`, replaces + `del()`s old blob), `extractRoomsFromFloorPlanAction` (owner-gated wrapper), `setPropertyRooms` (owner-gated, case-insensitive dedup on write).
+24. **Built `src/components/floor-plan-section.tsx`:** three-state client component (empty / has plan / suggestions returned). Upload affordance → "Find rooms with the Foreman" CTA → checklist with inline-editable names → "Save selected" merges + dedups. Existing rooms shown as removable chips above.
+25. **Settings page wiring:** new "Floor plan & rooms" section (index 02) gated to `isOwner && project.propertyId`. Reads property server-side, drops to client component.
+26. **5.14 verification:** tsc + lint + build all clean. Committed + pushed → PR #15.
+27. **Branched `phase-5-9-shoot-suggestions`** from main. Read the existing tool-registration pattern in the 1383-line chat route, the `TOOL_LABELS` map, and the hero-of-the-week heuristic in `projects.ts`.
+28. **Built `src/lib/shoot-suggestions.ts`:** cheap heuristic (no AI) — `reshoot-room` (>14 days since last shot, sorted most-overdue first) + `first-shot-of-room` (Property room with no photos). Cap 3. Empty when nothing's stale (better silence than filler).
+29. **Wired `suggestShoot` Foreman tool** in `src/app/api/chat/route.ts` — presentational (no `commit()` since no DB write). System-prompt ACTIONS line extended with "stay quiet when nothing is overdue." `TOOL_LABELS` entry "Shoot ideas" added.
+30. **5.9 verification:** tsc + build clean. Committed + pushed → PR #16.
+31. **Wrote the end-of-run handoff** (this block, original "queued for mobile-verify" version) on main and pushed.
+32. **Tom asked to push to main for prod viewing.** Squash-merged PR #12 first (schema change, gate verification), then #13, #14, #15, #16 in order. Polled deploy status until Vercel returned `success` on `181e03a`. Prod live at https://diy-reno.vercel.app.
+33. **Updated this handoff block** to reflect MERGED + DEPLOYED status with merge SHAs (this commit).
+
+### Hooks / suggestions rejected during the run (with reasons, for future-self context)
+
+- **Bootstrap skill on README.md read** — false positive on basename pattern; project is already bootstrapped (live in prod).
+- **AI SDK / AI Gateway / Vercel Storage skills on import patterns** — relevant docs were already consulted via `node_modules/next/dist/docs/` per AGENTS.md; the patterns to mirror were in `dream.ts` already in production.
+- **"Use dots not hyphens for version numbers" validator error on `google/gemini-2.5-flash-image`** — false positive; `2.5` IS a dot, the slug matches the production-shipping string in `dream.ts`.
+- **"Switch to `gemini-3.1-flash-image-preview`" recommendation** — explicitly contradicts the owner-locked decision in PHOTO_PLAN.md §5 Q1. `3.1-flash-image-preview` is the *named candidate* for after the 20-render quality audit, which hasn't happened. PHOTO_EXECUTION_PROMPT.md §6 requires `BLOCKED-2.md` before changing PHOTO_PLAN direction. The `PAINT_PREVIEW_MODEL` env var makes a future flip a single env change.
+- **Chat-SDK skill on `app/api/chat/**` read** — adding one tool to a route with 17 existing examples of the same pattern; the conventions are visible in-file.
+- **"Use AI Elements instead of react-markdown" recommendation on `task-chat.tsx`** — README §7.8 explicitly documents this as off-limits: "`react-markdown` (not 'AI Elements') renders assistant text — a deliberate, safe choice; an ESLint hook suggests otherwise, ignore it."
+- **"Route handler has no observability instrumentation"** suggestion on OG routes — the codebase has no observability stack to integrate with; the routes already return 401/403/404/409 status codes for known error shapes.
+- **"vercel env pull" hook on PR-creation Bash** — false positive on prose inside the PR body; not an actual command.
+
+### Schema state after this run
+
+- `generation_log` table NEW (PR #12, `drizzle/0008_generation_log.sql`).
+- `photo.embedding` column now POPULATED on new uploads (PR #13); legacy photos backfill ~10 per visit to `/p/<id>/photos`.
+- No other schema changes. `property.rooms` continues to be `[{name, notes?}]` JSONB.
+
+### Spend ceiling held
 - Paint preview: 5/day per user; cache hits (same color, same photo) free forever — `generation_log` counts only fresh renders.
 - Same-angle producer: `google/text-embedding-004` over the AI caption, once per upload, sub-penny each.
 - Magazine cover + postcard: zero new AI spend (real text via Satori, dream image as base).
 - Floor-plan ingestion: one Gemini Flash call per upload, explicit user trigger.
 - Shoot suggestions: pure heuristic, zero AI.
 
-**Hard-stops still hard:**
+### Hard-stops still hard
 - Material swap, empty room, side-by-side, product insertion — `BLOCKED-2.md` required before any of them.
 - 5.15 closers — no urgency before "done enough."
 - 5.12 annotation + measurement — skipped this run; the cheapest v0 still needs a schema change + meaningful canvas work, didn't fit.
 
-**Deferred follow-ups (not blocked, just out of scope this run):**
+### Deferred follow-ups (not blocked, just out of scope this run)
 - 5.7 ROI-level pairing (per-region match across time when wide-shot framings drift).
 - 5.7 manual pair / unpair override.
 - 5.13 photo essay (auto-curated editorial across N photos) + time-lapse stitch.
@@ -42,16 +95,24 @@
 - 5.9 `getUserMedia()` live framing overlay.
 - 5.12 annotation drawing + measurement-from-photo.
 
-**Exact next action when you resume:**
-1. **Merge order doesn't matter** — none of the five PRs depend on another; each branches from main and lints/builds independently. Merge in any order you like.
-2. **Mobile-verify each PR's `Tom-must-verify` section** on your phone. The PR bodies have the specific gestures + expected behavior; report regressions as comments and I'll fix on next run.
-3. **5.11 cap audit** — open a project's photo lightbox, try 5 distinct paint colors in one day, then try a 6th. The 6th should land in the friendly "back tomorrow" message, not a 500. After tonight UTC rolls, the count should reset.
-4. **5.7 backfill check** — `/p/<id>/photos` lazy-fires `backfillProjectEmbeddings(cap=10)` on each visit. Visit ~3 times to embed legacy photos; clusters should start appearing within a few visits if your kitchen has 2+ photos of the same wall.
-5. If you want a sixth run, the natural next items are: **5.7 ROI-level pairing** (extend the producer to embed each ROI; use those for finer-grained clusters), **5.14 dimensions/adjacencies** (extend the vision schema), or **5.12 v1** (decide on a schema for `photo_pin` and ship pin-a-comment + Foreman annotation). All three are unlocked.
+### Mobile-verify checklist (still owed by Tom)
+1. **5.11**: lightbox Sparkles → preset swatch → ~3–8s render → re-tap same color → `cached · free`. Try a 6th distinct color in one UTC day → friendly cap message (not 500). Dream-hero "Why this image?" → spend line should reflect today's count.
+2. **5.7**: `/p/<id>/photos` should show "Then & now" above the grid when ≥1 cluster matches. Visit ~3 times to embed legacy photos via backfill.
+3. **5.13**: `/p/<id>/picks` → "Cover & postcard" section (only when dream exists). Long-press on mobile → save image.
+4. **5.14**: `/p/<id>/settings` (owner only) → "Floor plan & rooms". Upload sketch → "Find rooms" → confirm.
+5. **5.9**: Ask Foreman "what should I shoot?" in any chat — `Shoot ideas` chip + stale-room nudges.
 
-**Things to be honest about:**
-- I cannot drive your Google login, so every "verified" claim is build-clean + lint-clean + tsc-clean + (where applicable) §5-pipeline-green. The visual / behavioral check is yours.
-- Each Vercel preview build re-applies the §5 pipeline. Five preview branches → five gate-runs against prod. Each ~3s of Neon branch activity; cheap but visible in Neon usage logs.
+### Exact next action when you resume
+If you want a sixth run, the three natural next items are:
+- **5.7 ROI-level pairing** (extend the producer to embed each ROI; use those for finer-grained clusters across rooms with shifting framings).
+- **5.14 dimensions + adjacencies** (extend the floor-plan vision schema with `dimensions: { wallLengths?: ... }` and `adjacencies: { roomA, roomB }[]`).
+- **5.12 v1** (decide on a schema for `photo_pin` — `(id, photoId, x, y, body, authorId)` — and ship pin-a-comment + Foreman annotation via the same `commit()` chat pattern).
+
+All three are unlocked. None require a new owner decision before starting.
+
+### Things to be honest about
+- I cannot drive your Google login, so every "verified" claim is build-clean + lint-clean + tsc-clean + (where applicable) §5-pipeline-green + (now) deploy-success. The visual / behavioral check is yours.
+- Each Vercel preview build re-applied the §5 pipeline. Five preview branches → five gate-runs against prod, plus the post-merge prod deploy. Each ~3s of Neon branch activity; cheap but visible in Neon usage logs.
 - The dream-hero quality reassessment after 20 renders (PHOTO_PLAN.md §5 Q1 / §4) still hasn't run — I haven't generated 20 dreams to audit. Whenever your dream count hits 20, audit "same kitchen evolving" against §5.2's exit criterion; if failing, FLUX Kontext is the named fallback (flip `DREAM_MODEL` env var; paint preview follows automatically via `PAINT_PREVIEW_MODEL` fallback to `DREAM_MODEL`).
 
 ## Overnight run 2026-05-24 — end-of-run handoff
