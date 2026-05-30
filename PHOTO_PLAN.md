@@ -156,6 +156,37 @@ its body — these only run in your authenticated browser):**
 2. Then deferred items that compound on the cost-cap infra, in order: **5.7 same-angle pairing** (agent picks embedding with sensible default), **5.13 remainder** (magazine cover / photo essay / time-lapse / postcards), **5.14 floor-plan ingestion**, **5.9 lightweight shoot suggestions**, **5.12 annotation + measurement** if room.
 3. **Hard stop remains** for any other §5.11 variant — write `BLOCKED-2.md` before any of them.
 
+## Overnight run 2026-05-29 — 5.11 v0 paint preview shipped
+
+**One PR**: `phase-5-11-paint-preview-v0` (link populated once `gh pr create` runs at end of run).
+
+**Shipped:**
+- New `generation_log` table (project_id, user_id, kind, cost_estimate_cents, created_at) with two indexes (`(user_id, kind, created_at)` for the cap query, `(project_id, created_at)` for audit). Migration `drizzle/0008_generation_log.sql` — purely additive, idempotent, non-destructive. The §5 pipeline applies it in the Vercel build with the throwaway-Neon-branch idempotency gate; live "Kitchen Renovation" untouched.
+- `src/lib/paint-preview.ts` — `renderPaintPreview({ photoId, color, userId })` via Gemini 2.5 Flash Image (`PAINT_PREVIEW_MODEL` env override, defaults to the same locked provider as the dream hero). Multimodal grounding mirrors `dream.ts`: labeled `[Image 1] CURRENT STATE — preserve everything except wall color` before the photo URL, then the spec block.
+- Deterministic blob cache at `projects/{projectId}/paint/{photoId}/{colorhex}.png`. `head()` check is the cache lookup; cache hits are **free** (no cap charge, no log row). `allowOverwrite: true` so a re-render cleanly replaces the previous blob.
+- Server-side cap = **5 renders / day per user**, hard-enforced. Counts rows in `generation_log` where `kind = 'paint_preview'` and `created_at >= utcDayStart()` *before* the model call. Cap exhaustion returns a tagged `{ ok: false, reason: 'cap', message: "you've used today's renders — back tomorrow" }`, not a 500. Log row is inserted only on success — a model error never burns the user's quota.
+- `previewPaint` and `getPaintSpend` server actions in `src/app/actions.ts`. `previewPaint` resolves the photo, runs `assertCanWrite` for authz, returns a tagged-union result. `getPaintSpend` is a thin read-only wrapper for the spend snapshot.
+- **Lightbox entrypoint:** Sparkles "Try this in your room" button inside the `canWrite` block in `src/components/photo-timeline.tsx` (next to Edit, before the layout controls). Opens an inline panel with 8 preset paint colors + a hex input. Renders the preview inline at up to 60vh; shows "cached · free" when the blob existed; "Try another" resets. Cap message + bad-color message render inline. Never the default action.
+- **Dream-hero spend surface:** "Paint previews today · 2 of 5 (3 left)" line at the top of the "Why this image?" panel in `src/components/dream-hero.tsx`. Owners only (`canWrite`). Lazy-fetched on first panel open via `getPaintSpend()`.
+
+**Verified:**
+- `npx tsc --noEmit` clean.
+- `npm run lint` clean for all changed files (one pre-existing warning in `src/lib/brief-pdf.tsx` is unrelated).
+- `npm run build` succeeds; all 17 routes still build.
+- `npm run db:generate` produced a single new migration (`0008_generation_log`); hand-reviewed into idempotent SQL matching the convention from `0002_foreman_memory` (CREATE TABLE IF NOT EXISTS, pg_constraint guards, CREATE INDEX IF NOT EXISTS).
+
+**Tom-must-verify** (every shipped surface is behind Google auth; I cannot drive your login):
+- Open a project's photo timeline (`/p/<id>/photos`), open any photo in the lightbox. The Sparkles **"Try this in your room"** button should appear in the canWrite button bar (next to Edit). Tap it — the inline panel should show 8 preset swatches + a hex input. Tap one swatch — the preview should render inline in 3–8s (Gemini 2.5 Flash Image). Re-tap the same swatch — should come back as `cached · free`. Try a 6th distinct color in the same day — should land in the friendly cap message, not a 500.
+- On the project home (`/p/<id>`), tap **"Why this image?"** under the dream hero — the spend line should show "Paint previews today · N of 5". Try a paint preview from the lightbox, return, re-open the panel — N should have incremented (after page refresh / revalidate; the action calls `revalidateProject`).
+- Mobile: do all of the above at a phone viewport. The panel should layout cleanly without horizontal scroll; the inline preview should fit within the lightbox.
+- Confirm the §5 pipeline ran green in the preview build: `drizzle/0008_generation_log.sql` should appear in the apply-set with `Gate PASSED`. Live data should still be intact.
+
+**Honest gaps:**
+- Public mobile-viewport screenshot wasn't useful: `.env.local` lacks `DATABASE_URL` (sensitive Vercel env, can't `pull`), so `/signin` 500s locally on the server-side DB probe. The entire paint-preview UI is behind auth — there is no public visual proof.
+- The dream-hero spend line uses a `useEffect` to lazy-fetch the spend after the panel opens; on a slow connection there's a flash before the line appears. Acceptable for v0; if it grates, move the read into the RSC and pass the snapshot down.
+
+**Next sub-phase when you resume**: 5.7 same-angle pairing. Per §3 item 2 of the execution prompt, the agent's call on embedding provider — `google/text-embedding-004` over the AI caption is the acceptable default. The embedding column already exists on `photo` (`drizzle/0006_photo_passive_vision.sql`); wire the producer in the same `after()` block as `runVisionOnPhoto`, then the matcher, then the diptych UI. No new owner decision required.
+
 ---
 
 ## 0. Thesis
@@ -485,11 +516,19 @@ Exit: photos are how the user shops, not only how they document.
 
 ### 5.11  Targeted generative variations (cost-gated)
 
+> ✓ **5.11 v0 paint preview shipped** — pending merge
+> (`phase-5-11-paint-preview-v0`). Server-side cap = 5 renders/day per
+> user via `generation_log`; cached previews (same color, same photo)
+> are free. Lightbox Sparkles entrypoint + dream-hero spend surface
+> live. Other §5.11 variants (material swap, empty room, side-by-side,
+> product insertion) remain hard-stopped pending a second Tom decision
+> per PHOTO_EXECUTION_PROMPT.md §3 item 7.
+
 The original PLAN.md §5 "AI renderings" line, narrowed. Per-request,
 ordered by reliability and cost. **Stop and confirm with Tom before
 shipping this sub-phase** — it commits material cost.
 
-- [ ] **Paint preview** — wall mask + recolor. Cheapest, highest hit
+- [x] **Paint preview** — wall mask + recolor. Cheapest, highest hit
       rate.
 - [ ] **Material swap** — floor, backsplash, counter; against a small
       curated material library to keep prompts predictable.

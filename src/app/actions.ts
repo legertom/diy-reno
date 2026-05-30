@@ -831,6 +831,92 @@ export async function regenerateDream(projectId: string) {
   return result;
 }
 
+/** Phase 5.11 v0: read today's paint-preview spend for the signed-in
+ *  user. Server action so a Client Component (the dream-hero "Why this
+ *  image?" panel + the lightbox entrypoint) can call it without a route
+ *  handler. Used purely for display — the action itself does not gate. */
+export async function getPaintSpend(): Promise<{
+  used: number;
+  cap: number;
+  remaining: number;
+}> {
+  const user = await requireUser();
+  const { getPaintSpendToday } = await import("@/lib/paint-preview");
+  return getPaintSpendToday(user.id);
+}
+
+/** Phase 5.11 v0: render the paint preview for one photo at one color.
+ *  Returns a tagged result so the lightbox can render a friendly cap
+ *  message without a 500. Cap exhaustion + bad input are NOT exceptions.
+ *  Genuine errors (auth, model failure) DO throw. */
+export type PreviewPaintResult =
+  | {
+      ok: true;
+      url: string;
+      cached: boolean;
+      spend: { used: number; cap: number; remaining: number };
+    }
+  | {
+      ok: false;
+      reason: "cap" | "bad_color";
+      message: string;
+      spend: { used: number; cap: number; remaining: number };
+    };
+
+export async function previewPaint(input: {
+  photoId: string;
+  color: string;
+}): Promise<PreviewPaintResult> {
+  const db = getDb();
+  const [photo] = await db
+    .select({ id: photos.id, projectId: photos.projectId })
+    .from(photos)
+    .where(eq(photos.id, input.photoId));
+  if (!photo) throw new Error("Photo not found");
+  const { user } = await assertCanWrite(photo.projectId);
+
+  const {
+    renderPaintPreview,
+    PaintCapExceededError,
+    PaintPreviewError,
+    getPaintSpendToday,
+  } = await import("@/lib/paint-preview");
+  try {
+    const result = await renderPaintPreview({
+      photoId: photo.id,
+      color: input.color,
+      userId: user.id,
+    });
+    // The dream-hero spend panel and the timeline lightbox both reflect
+    // the new spend after a successful render.
+    revalidateProject(photo.projectId);
+    return {
+      ok: true,
+      url: result.url,
+      cached: result.cached,
+      spend: result.spend,
+    };
+  } catch (e) {
+    if (e instanceof PaintCapExceededError) {
+      return {
+        ok: false,
+        reason: "cap",
+        message: `You've used today's renders (${e.used} of ${e.cap}) — back tomorrow.`,
+        spend: await getPaintSpendToday(user.id),
+      };
+    }
+    if (e instanceof PaintPreviewError && /color/i.test(e.message)) {
+      return {
+        ok: false,
+        reason: "bad_color",
+        message: e.message,
+        spend: await getPaintSpendToday(user.id),
+      };
+    }
+    throw e;
+  }
+}
+
 /** Patch the project's styleProfile. Triggers a dream re-render only
  *  when the new shape differs in a render-affecting way (see
  *  styleProfileTriggersRerender). Cooldown is honored so the dream
