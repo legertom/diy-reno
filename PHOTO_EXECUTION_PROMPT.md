@@ -2,15 +2,18 @@
 
 > **Read this once, then operate from it.** You are a fresh Claude
 > Code agent (Opus 4.7) starting at the project root of DIY Reno with
-> no memory of prior conversations. Your job is to execute
-> `PHOTO_PLAN.md` end to end, in the sequence and to the standards
-> defined below. **All seven open questions are pre-resolved in
-> `PHOTO_PLAN.md` §5; no blocking-decision rounds are required.**
-> This document is your operating contract. The owner is Tom
+> no memory of prior conversations. Your job is to execute the
+> **post-overnight-run continuation** described in §3 below. The
+> previous run (2026-05-24) shipped 5.1 through 5.10 v0 across 11
+> merged PRs; see `PHOTO_PLAN.md` top of file for the handoff and
+> `BLOCKED.md` for the resolved §5.11 question. **All seven §5 open
+> questions and the 5.11 cost gate are now pre-resolved.** This
+> document is your operating contract. The owner is Tom
 > (tomleger@gmail.com). **Tom is asleep when you run.** If you would
 > normally ask him, follow §6 instead.
 >
-> Rev. 3 — 2026-05-24.
+> Rev. 4 — 2026-05-26. **5.11 paint preview unlocked** (option 1, cap
+> = 5 renders/day, ~$6/mo). Other §5.11 variants remain hard-stopped.
 
 ---
 
@@ -111,10 +114,11 @@ around it.
 - **Cost-gated AI.** Caption / tag / embedding / ROI / safety calls
   run *once per upload* and cache on the row. The dream hero caches
   per project, regenerated only on listed `dreamTriggers` (see
-  `PHOTO_PLAN.md` §5 Q3). Only §5.11 variations are per-request
-  spend, and **§5.11 is a hard stop** — do not begin any 5.11 work
-  without Tom's explicit go-ahead (see §6). When you do ship 5.11,
-  every entrypoint must have a per-user daily cap from day one.
+  `PHOTO_PLAN.md` §5 Q3). §5.11 variants are per-request spend:
+  **paint preview is unlocked** with a **5/day per-user cap (~$6/mo
+  ceiling)** — see `BLOCKED.md` Resolution. **Material swap, empty
+  room, side-by-side, and product insertion remain hard-stopped**;
+  write `BLOCKED-2.md` and end the run before starting any of them.
 - **`@layer base`** for global CSS overrides. Unlayered global rules
   lose to Tailwind utilities (README §7.11).
 - **Voice consistency.** Photo critique (5.6), smart-crop captions
@@ -134,27 +138,52 @@ compaction or crash mid-run will otherwise lose state.
 
 ### Order
 
-1. **5.1 Foundation** — *partially done.* Finish: project-level
-   timeline view, EXIF extraction, room-attach, camera button on
-   project home, reorder, cascade Blob delete on row delete.
-   **Verify the cascade actually runs by deleting a test task /
-   project.**
-2. **5.2 Dream hero + 5.3 Passive AI — together.** Ship as one PR or
-   two stacked PRs landed back-to-back. 5.3 (Gemini Flash via AI
-   Gateway, §5 Q4) is the vision substrate 5.6+ depends on; 5.2 is
-   the home-screen change that justifies the rest. Don't sequence
-   one fully behind the other.
-3. **5.4 Smart crops & details** — *new sub-phase.* Same vision call
-   as 5.3 returns 3–5 ROIs per photo. Surfaced as a "Foreman noticed
-   these…" strip. JSON column on `photo`. Compounds into 5.5, 5.7,
-   5.8, 5.12, 5.13.
-4. **5.5 Reality-vs-dream loop** — depends on 5.2 landing. ROI-aware
-   punch list uses 5.4.
-5. **5.6 → 5.10, then 5.12 → 5.15** — in numerical order, skipping
-   5.11.
-6. **5.11 — HARD STOP.** Do not start. Write `BLOCKED.md` (see §6)
-   with your readiness summary and a cost estimate, and end the run.
-   5.11 needs Tom's explicit sign-off.
+5.1 through 5.10 v0 already shipped in the previous run (see
+`PHOTO_PLAN.md` top handoff table for PR links + merge SHAs). Do
+**not** rebuild them. The new run starts with the unblocked §5.11
+v0 and then picks up deferred items that compound on its cost-cap
+infra.
+
+1. **5.11 v0 — paint preview.** Branch `phase-5-11-paint-preview-v0`.
+   Ship as one PR.
+   - `generation_log` table (project_id, user_id, kind, created_at,
+     cost_estimate_cents) for server-side cap enforcement + audit.
+     New migration — run through `npm run db:deploy` like every
+     other schema change.
+   - `renderPaintPreview(photoId, color)` server action via Gemini
+     2.5 Flash Image through AI Gateway (same provider as the
+     dream).
+   - "Try this in your room" entrypoint in the photo lightbox —
+     `Sparkles`-icon-gated, `canWrite` only, never default.
+   - Today's spend + remaining cap surfaced in the dream-hero
+     "Why this image?" panel.
+   - **Cap = 5 renders / day per user, hard-enforced server-side**
+     against `generation_log`. Cap exhaustion returns a friendly
+     "you've used today's renders — back tomorrow" message, not a
+     500.
+2. **5.7 same-angle pairing.** Agent's call on embedding provider —
+   `google/text-embedding-004` on the AI caption is an acceptable
+   default; a dedicated image embedder via the Gateway is the
+   alternative if you find it cheap enough. The embedding column
+   already exists in `photo` (`drizzle/0006_photo_passive_vision.sql`)
+   — wire the producer, then the matcher, then the diptych UI.
+3. **5.13 remainder.** Magazine cover, photo essay, time-lapse,
+   shareable postcards. Capstone-first ("Foreman's picks") already
+   shipped; these are the editorial-spread expansions.
+4. **5.14 floor-plan ingestion.** Property already has
+   `floor_plan_url` + nullable `rooms` from Phase 1. Single Gemini
+   Flash vision call + per-room confirmation UI.
+5. **5.9 lightweight Foreman-as-photographer.** Shoot-suggestion
+   tool over the existing hero-shot heuristic. **Skip the
+   `getUserMedia()` framing overlay** — that's heavy client work,
+   defer.
+6. **5.12 annotation + measurement.** Only if there's still capacity
+   in the run after 5.14 lands.
+7. **HARD STOP — any §5.11 variant beyond paint preview.** Material
+   swap, empty room, side-by-side, product insertion all stay
+   parked. Write `BLOCKED-2.md` (see §6) before starting any of
+   them and end the run. **5.15 closers** also stays parked — no
+   urgency before "done enough."
 
 ### Per-sub-phase deliverables
 
@@ -266,16 +295,19 @@ mechanism is a file: write `BLOCKED.md` at the repo root, commit it
 to your current branch, push, and end the run. Tom reads it in the
 morning.
 
-**Stop and write `BLOCKED.md` before:**
+**Stop and write `BLOCKED-2.md` before:**
 
-- Starting 5.11 (always — this is the hard stop)
-- The 5.2 quality reassessment after 20 renders, if quality is
-  failing (FLUX Kontext switch is named fallback — recommend it)
+- Starting **any §5.11 variant beyond paint preview** (material
+  swap, empty room, side-by-side, product insertion) — paint
+  preview is unlocked; the rest are still hard-stopped
+- The 5.2 quality reassessment after another 20 renders, if quality
+  is failing (FLUX Kontext switch is named fallback — recommend it)
 - Any migration whose hand-reviewed SQL is non-trivial or would risk
   the seeded "Kitchen Renovation" data
 - Anything that would change `PLAN.md` or `PHOTO_PLAN.md` direction
 - Pulling anything from `PHOTO_PLAN.md` §6 ("What is NOT in this
   plan") forward
+- Starting 5.15 closers (parked — no urgency before "done enough")
 - A third consecutive failure on the same step you can't diagnose
 
 **Do not stop for:**
@@ -309,8 +341,10 @@ mid-renovation.
 
 You have executed `PHOTO_PLAN.md` **perfectly** when:
 
-- All `[ ]` boxes in §3 (5.1 through 5.15, excluding 5.11) are
-  checked. 5.11 is gated on Tom — its boxes stay unticked.
+- All `[ ]` boxes in §3 (5.1 through 5.15, excluding 5.11 variants
+  beyond paint preview) are checked. Paint preview's boxes get
+  ticked when shipped; material swap / empty room / side-by-side /
+  product insertion stay unticked pending a second Tom decision.
 - Each sub-phase shipped as its own PR, with mobile-viewport
   verification.
 - The home screen, post-login, leads with the dream hero.
@@ -322,8 +356,9 @@ You have executed `PHOTO_PLAN.md` **perfectly** when:
 - Sunday postcard (5.2) is opt-in, off by default.
 - No countdowns, no deadline overlays on any photo screen.
 - Cost discipline held: caption / tag / embedding / ROI / critique
-  ran once per upload; dream hero cached per project. (5.11
-  per-request spend is deferred.)
+  ran once per upload; dream hero cached per project; 5.11 paint
+  preview is the only per-request spend, capped at 5/day per user
+  via `generation_log`. Other 5.11 variants remain deferred.
 - §5.13's "Foreman's picks" exists and pulls from diptychs (5.7),
   hero shots (5.9), smart crops (5.4), and magazine spreads.
 
@@ -356,18 +391,23 @@ becomes a final message in the conversation:
 After reading §0 documents, do **this**, in this order — no
 ceremony, no announcement message:
 
-1. `git checkout -b phase-5-1-foundation` from latest `main`.
-2. `TaskCreate` the remaining 5.1 checklist from `PHOTO_PLAN.md` §3
-   (project-level timeline, EXIF extraction, room-attach, camera
-   button on project home, reorder, cascade-delete verification),
-   one task per `[ ]`.
-3. Spawn an `Explore` subagent to confirm what's already wired up
-   for each item (so you don't rebuild what exists). Brief it with
-   the specific files in §0 step 7–10 of this doc as starting
-   points.
-4. Start the first `[ ]`.
+1. `git checkout -b phase-5-11-paint-preview-v0` from latest `main`.
+2. `TaskCreate` the §3 item 1 checklist (generation_log table +
+   migration; `renderPaintPreview` server action; "Try this in
+   your room" lightbox entrypoint; dream-hero spend surface;
+   server-side cap enforcement against `generation_log`), one
+   task per bullet.
+3. Spawn an `Explore` subagent to map the existing render path
+   for the dream (so paint preview reuses the AI Gateway client
+   pattern, the Blob caching pattern, and the lightbox component
+   shape rather than inventing new ones). Brief it with the dream
+   render code from PR #2 (commit `23ba40f`) and the dream
+   grounding fix from PR #10 as starting points.
+4. Start the first `[ ]`. When paint preview lands, move to §3
+   item 2 (5.7 same-angle pairing) without further ceremony.
 
 Your first user-visible text should be a single line:
-`Starting Phase 5.1 on branch phase-5-1-foundation. Remaining scope:
-<N items>.` Then work. No further owner input is needed before
-5.11.
+`Starting 5.11 v0 paint preview on phase-5-11-paint-preview-v0.
+Cap: 5/day. Then 5.7 → 5.13 remainder → 5.14 → 5.9 light.` Then
+work. No further owner input is needed before any other §5.11
+variant.

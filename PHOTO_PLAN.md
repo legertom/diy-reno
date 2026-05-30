@@ -99,6 +99,17 @@ its body — these only run in your authenticated browser):**
   prod (idempotent, gated). That's ~3 seconds of Neon branch activity
   per build. Cheap but visible in Neon usage logs.
 
+## Overnight run 2026-05-26 — Tom's decision (5.11 unblocked)
+
+**`BLOCKED.md` resolved:** Tom picked **Option 1** — paint preview only, cap = 5/day, ~$6/mo ceiling. Material swap, empty room, side-by-side, and product insertion all stay parked.
+
+**Timing: "just do it now"** — next overnight run kicks off without a mobile-verify gate.
+
+**Next-run scope** (see `PHOTO_EXECUTION_PROMPT.md` rev 4 for the operating contract):
+1. **5.11 v0 paint preview** on `phase-5-11-paint-preview-v0` — `generation_log` table, `renderPaintPreview` action, lightbox entrypoint, dream-hero spend surface.
+2. Then deferred items that compound on the cost-cap infra, in order: **5.7 same-angle pairing** (agent picks embedding with sensible default), **5.13 remainder** (magazine cover / photo essay / time-lapse / postcards), **5.14 floor-plan ingestion**, **5.9 lightweight shoot suggestions**, **5.12 annotation + measurement** if room.
+3. **Hard stop remains** for any other §5.11 variant — write `BLOCKED-2.md` before any of them.
+
 ---
 
 ## 0. Thesis

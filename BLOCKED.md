@@ -51,3 +51,26 @@ These don't need a decision but are flagged so they don't fall off:
 - **5.15 closers** — end-of-project surface; no urgency until you're near "done enough" (July 1).
 
 All of these compound nicely on the §5.11 cost-cap infra (generation_log + per-user cap), which is why §5.11 should land first.
+
+---
+
+## Resolution — 2026-05-26 (Tom)
+
+**Option 1 picked: paint preview only, cap = 5 renders/day, ~$6/mo ceiling.** Tighter than the agent's recommendation (Option 3). Tom's call; consistent with the free-tier / Vercel-native bias in `user_preferences.md`. Material swap, empty room, side-by-side, and product insertion all stay parked.
+
+**Timing: "just do it now"** — next overnight run kicks off immediately, no mobile-verify gate.
+
+**Scope for the next run** (also encoded in `PHOTO_EXECUTION_PROMPT.md` rev 4):
+
+1. Ship paint preview v0 on `phase-5-11-paint-preview-v0`:
+   - `generation_log` table (project_id, user_id, kind, created_at, cost_estimate_cents) for server-side cap enforcement + audit trail.
+   - `renderPaintPreview(photoId, color)` server action via Gemini 2.5 Flash Image (same provider as the dream).
+   - "Try this in your room" lightbox entrypoint, `Sparkles`-icon-gated, `canWrite` only, never default.
+   - Today's spend + remaining cap surfaced in the dream-hero "Why this image?" panel.
+2. After paint preview ships, pick up deferred items that compound on the cost-cap infra, in order of value:
+   - **5.7 same-angle pairing** — agent's call on embedding provider; `google/text-embedding-004` on the AI caption is an acceptable default.
+   - **5.13 remainder** — magazine cover, photo essay, time-lapse, shareable postcards.
+   - **5.14 floor-plan ingestion** — vision → structured rooms on Property.
+   - **5.9 lightweight Foreman-as-photographer** — shoot suggestions tool over the existing hero-shot heuristic. `getUserMedia()` framing overlay stays deferred.
+   - **5.12 annotation + measurement** — only if there's room left in the run.
+3. **Hard stop remains** for any *other* §5.11 variant (material swap, empty room, side-by-side, product insertion). Write `BLOCKED-2.md` and end the run before starting any of those.
