@@ -55,7 +55,7 @@ Rules:
 - Prefer short paragraphs and tight numbered steps. Bold the one thing that matters most.
 - If something is ambiguous, ask one sharp clarifying question instead of guessing.
 - TOOLS: when a task needs tools, check them against the user's owned-tools list. Clearly state which planned tools they ALREADY OWN and which they're MISSING. For each missing tool, recommend BUY or RENT — rent expensive/bulky/seldom-reused gear (floor sander, tile wet saw, scaffolding, hammer drill for one job), buy cheap or frequently-reused hand tools. Give rough price/rental ranges when useful. Never tell them to buy something they already own.
-- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set a task's status via setTaskStatus, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe or RENUMBER a task via editTaskDetails (use its 'num' arg to fix duplicate numbers — e.g. split three #30 into '30a'/'30b'/'30c'), REORDER the project task list via moveTask, MANAGE PHASES — moveTaskToPhase, movePhase, renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool, save durable facts about THE PLACE via setPropertyDetails (type apartment/house/other, own/rent, location, name), capture STYLE CHOICES that drive the AI dream-hero image via setStyleProfile (vibe, palette, cabinets, counters, floors, fixtures, backsplash, walls, dimensionsHint — only save what the user has actually named; do NOT invent finishes). EVERY task tool works on ANY task from anywhere (project chat, the global bubble, or a task page): pass the 'task' arg as the task's # (e.g. '30a') or part of its title — you do NOT need the user to 'open' a task. If a # is ambiguous (duplicates), the tool tells you the candidates; pick by title or renumber them. Take the action when the user asks. Don't just describe it — do it.
+- ACTIONS: you can actually change things with your tools — and ONLY these: update the PROJECT BRIEF via setProjectBrief (when the user states a durable fact about the home/scope — "walls are plaster", house age, budget — fold it into the existing brief and save the full text), rename the project / change its tagline via updateProjectDetails, DELETE a task via deleteTask or a phase via deletePhase (only on explicit request), CREATE A NEW TASK via addTask (optionally in a phase from PROJECT PHASES or a new phase, optionally with steps/tools/materials/safety; then call moveTask if the user wants it in a specific spot), set a task's status via setTaskStatus, REWRITE THE PLAN (steps/tools/materials/safety/tips) via updateTaskGuide, rename/redescribe or RENUMBER a task via editTaskDetails (use its 'num' arg to fix duplicate numbers — e.g. split three #30 into '30a'/'30b'/'30c'), REORDER the project task list via moveTask, MANAGE PHASES — moveTaskToPhase, movePhase, renamePhase, mergePhases (fold one phase's tasks into another and delete it; great for cleaning up stray single-task phases), add a note, add a buy-list item, log time, record an owned tool, save durable facts about THE PLACE via setPropertyDetails (type apartment/house/other, own/rent, location, name), capture STYLE CHOICES that drive the AI dream-hero image via setStyleProfile (vibe, palette, cabinets, counters, floors, fixtures, backsplash, walls, dimensionsHint — only save what the user has actually named; do NOT invent finishes), surface SHOOT SUGGESTIONS via suggestShoot when the user asks "what should I shoot?" or a quiet stale-room nudge fits the moment (stay quiet when nothing is overdue — better silence than filler). EVERY task tool works on ANY task from anywhere (project chat, the global bubble, or a task page): pass the 'task' arg as the task's # (e.g. '30a') or part of its title — you do NOT need the user to 'open' a task. If a # is ambiguous (duplicates), the tool tells you the candidates; pick by title or renumber them. Take the action when the user asks. Don't just describe it — do it.
 - READ BEFORE WRITE: in project mode (no task open) the ALL TASKS list shows you titles only — NOT the steps/tools/materials/safety inside each task. Before editing a task, OR before claiming a task is unaffected by a brief/scope change, call inspectTask({ task: '# or title' }) to read its full plan. From a task page you already have the current task's full plan in CURRENT TASK CONTEXT — only inspectTask OTHER tasks. inspectTask is read-only; use it freely.
 - CRITICAL — if the user asks you to change/fix/update the steps or the plan, you MUST call updateTaskGuide with the corrected arrays (and editTaskDetails if the title/detail is now inaccurate). Adding a note is NOT updating the plan. Never say "steps updated" / "task updated" unless that specific tool returned ok. After acting, state ONLY the changes whose tools returned ok — nothing more.
 - "Make this task / the plan reflect <X>" means the WHOLE task: call editTaskDetails (title/detail) AND updateTaskGuide (steps/tools/materials/safety/tips). After ANY change to the method, scan the existing guide — if tools/materials/safety/steps still describe the OLD method, they are now wrong and unsafe; fix them in the same turn or, if you can't, explicitly tell the user exactly which sections are now stale.
@@ -1230,6 +1230,29 @@ export async function POST(req: Request) {
             ),
           },
         );
+      },
+    }),
+    suggestShoot: tool({
+      description:
+        "Find rooms whose timeline coverage has gone stale (no fresh shot in ~2 weeks) or rooms on the Property that have no photos yet. Use this when the user asks 'what should I shoot?' or volunteers a quiet 'worth photographing' nudge mid-conversation. Presentational — returns suggestions, doesn't save anything. Stay quiet when nothing is overdue; better silence than filler.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(5)
+          .optional()
+          .describe("Max suggestions to return (default 3)."),
+      }),
+      execute: async ({ limit }) => {
+        const { getShootSuggestions } = await import(
+          "@/lib/shoot-suggestions"
+        );
+        const suggestions = await getShootSuggestions({
+          projectId,
+          limit: limit ?? 3,
+        });
+        return { ok: true as const, suggestions };
       },
     }),
     setPropertyDetails: tool({
