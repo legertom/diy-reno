@@ -4,7 +4,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { del } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import { getDb } from "@/db";
 import {
   properties,
@@ -104,6 +104,89 @@ export async function createProperty(formData: FormData) {
     ownership: String(formData.get("ownership") || "").trim() || null,
     location: String(formData.get("location") || "").trim() || null,
   });
+  revalidatePath("/");
+}
+
+/** Phase 5.14 floor-plan ingestion: upload a sketch or contractor
+ *  drawing to Blob and point property.floorPlanUrl at it. Owner-gated.
+ *  Previous floor plan is del()'d after the new one is committed (Blob
+ *  has no orphan cleanup — same pattern as the dream hero asset). */
+export async function uploadFloorPlan(formData: FormData) {
+  const propertyId = String(formData.get("propertyId") || "").trim();
+  if (!propertyId) throw new Error("Missing property");
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Choose a floor plan image");
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    throw new Error("Floor plan too large (max 15MB)");
+  }
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Floor plan must be an image");
+  }
+  await assertOwnsProperty(propertyId);
+
+  const db = getDb();
+  const [existing] = await db
+    .select({ floorPlanUrl: properties.floorPlanUrl })
+    .from(properties)
+    .where(eq(properties.id, propertyId));
+  const previousUrl = existing?.floorPlanUrl ?? null;
+
+  const ext = file.type.split("/")[1] || "png";
+  const stamp = Date.now();
+  const pathname = `properties/${propertyId}/floorplan/${stamp}.${ext}`;
+  const blob = await put(pathname, file, {
+    access: "public",
+    contentType: file.type,
+    addRandomSuffix: false,
+    allowOverwrite: true,
+  });
+
+  await db
+    .update(properties)
+    .set({ floorPlanUrl: blob.url, updatedAt: new Date() })
+    .where(eq(properties.id, propertyId));
+
+  // Best-effort cleanup of the previous floor plan blob (orphan sweep).
+  if (previousUrl && previousUrl !== blob.url) {
+    try {
+      await del(previousUrl);
+    } catch (e) {
+      console.warn("[5.14] failed to del previous floor plan:", e);
+    }
+  }
+  revalidatePath("/");
+}
+
+/** Phase 5.14: run the Foreman's vision pass on the property's stored
+ *  floor plan. Returns suggested rooms; the UI confirms before
+ *  persisting. Owner-gated. */
+export async function extractRoomsFromFloorPlanAction(propertyId: string) {
+  await assertOwnsProperty(propertyId);
+  const { extractRoomsFromFloorPlan } = await import("@/lib/floor-plan");
+  return extractRoomsFromFloorPlan(propertyId);
+}
+
+/** Phase 5.14: persist a confirmed list of rooms onto property.rooms.
+ *  Replaces (not appends) — the UI shows both existing and suggested,
+ *  so the caller has already merged the set they want to keep. */
+export async function setPropertyRooms(input: {
+  propertyId: string;
+  rooms: { name: string; notes?: string }[];
+}) {
+  await assertOwnsProperty(input.propertyId);
+  const clean = input.rooms
+    .map((r) => ({
+      name: r.name.trim(),
+      notes: r.notes?.trim() || undefined,
+    }))
+    .filter((r) => r.name.length > 0);
+  const db = getDb();
+  await db
+    .update(properties)
+    .set({ rooms: clean, updatedAt: new Date() })
+    .where(eq(properties.id, input.propertyId));
   revalidatePath("/");
 }
 
