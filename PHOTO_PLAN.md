@@ -490,13 +490,19 @@ without a tape if needed.
 Delight. Quiet, opt-in, never a leaderboard. **The home of curation
 across the whole plan.**
 
-- [ ] **Monthly magazine cover** — your kitchen-to-be styled as a
-      Vogue Living spread. Frame-able.
+- [x] **Monthly magazine cover** — your kitchen-to-be styled as a
+      Vogue Living spread. Frame-able. _(v0: editorial composition over
+      cached dream via `next/og` `ImageResponse`; real text, not
+      hallucinated pixels. `/api/cover/[projectId]/og`. Surfaced on
+      picks.)_
 - [ ] **End-of-phase photo essay** — auto-curated, editorial layout
 - [ ] **Time-lapse stitch** of the whole project
-- [ ] **"On this day"** — a photo from one month / three months ago
-- [ ] **Shareable postcards** with hairline-rule chrome for partner /
-      family / a Slack channel
+- [x] **"On this day"** — a photo from one month / three months ago
+      _(shipped earlier — see top-of-file handoff PR #8)_
+- [x] **Shareable postcards** with hairline-rule chrome for partner /
+      family / a Slack channel _(v0: landscape editorial composition
+      via `next/og` `ImageResponse` at `/api/postcard/[projectId]/og`,
+      long-press-savable on mobile)_
 - [x] **Foreman's picks** — the capstone. A single curated view that
       pulls diptychs (5.7), hero shots (5.9), smart-crop highlights
       (5.4), magazine spreads from this section, and the dream

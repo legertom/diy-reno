@@ -169,6 +169,65 @@ export default async function ForemanPicksPage({
               </section>
             )}
 
+            {/* Phase 5.13 cover + postcard — only when there's a dream
+                to dress up. Both use cached assets (the dream blob);
+                no per-view AI spend. Mobile-savable via long-press. */}
+            {picks.dreamImageUrl && (
+              <section>
+                <div className="mx-auto max-w-5xl px-5 sm:px-8">
+                  <SectionHeader index="05" label="Cover &amp; postcard" />
+                  <p className="mt-3 max-w-xl text-sm text-ink-soft">
+                    Frame-able stills for a partner, a family text, or a
+                    Slack channel. Long-press on a phone to save the image.
+                  </p>
+                </div>
+                <div className="mx-auto mt-6 grid max-w-5xl gap-6 px-5 sm:grid-cols-[3fr_4fr] sm:gap-8 sm:px-8">
+                  <a
+                    href={`/api/cover/${projectId}/og`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block"
+                    aria-label="Open this month's cover"
+                  >
+                    <div className="relative overflow-hidden border border-line bg-paper-2 shadow-[var(--shadow-lift)] transition-transform group-hover:scale-[1.01]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/cover/${projectId}/og`}
+                        alt="This month's cover"
+                        width={1200}
+                        height={1600}
+                        className="block h-auto w-full"
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+                      The cover · {coverMonth(new Date())}
+                    </p>
+                  </a>
+                  <a
+                    href={`/api/postcard/${projectId}/og`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block"
+                    aria-label="Open shareable postcard"
+                  >
+                    <div className="relative overflow-hidden border border-line bg-paper-2 shadow-[var(--shadow-lift)] transition-transform group-hover:scale-[1.01]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/postcard/${projectId}/og`}
+                        alt="Shareable postcard"
+                        width={1600}
+                        height={1000}
+                        className="block h-auto w-full"
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+                      Postcard · today
+                    </p>
+                  </a>
+                </div>
+              </section>
+            )}
+
             {/* "Foreman noticed" — moment + progress ROIs across the
                 whole project. Each crop is a CSS background-position
                 overlay (no extra Blob writes per §5.4). */}
@@ -278,6 +337,14 @@ function HeroShotPlaceholder({ projectId }: { projectId: string }) {
       </div>
     </Link>
   );
+}
+
+function coverMonth(d: Date): string {
+  return d.toLocaleString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function relativeShort(d: Date): string {
