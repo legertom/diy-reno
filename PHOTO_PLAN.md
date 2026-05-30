@@ -485,19 +485,31 @@ useful index, not a pile.
 
 ### 5.9  Foreman as photographer
 
+> ✓ **5.9 v0 lightweight shipped** — pending merge
+> (`phase-5-9-shoot-suggestions`). New `suggestShoot` Foreman tool over
+> a server-side heuristic: stale rooms (>14d since last shot) +
+> never-photographed Property rooms; surfaced as quick-reply chips via
+> the existing `ask`/tool-result chip path. `getUserMedia()` live
+> framing overlay stays deferred.
+
 The active coaching layer on top of 5.7.
 
-- [ ] **Shoot suggestions** — "we have a tile shot from 3 weeks ago at
+- [x] **Shoot suggestions** — "we have a tile shot from 3 weeks ago at
       this angle; reshoot it tonight for next month's diptych"
+      _(v0: stale-room + blank-room heuristic via the Foreman's new
+      `suggestShoot` tool. Same-angle-reshoot specificity arrives once
+      5.7's clusters are seeded.)_
 - [ ] **Live framing overlay** on the camera when reshooting a paired
       angle — Foreman shows the older frame as a ghost
-- [ ] **Hero shot of the week** — Foreman picks one image from the
+- [x] **Hero shot of the week** — Foreman picks one image from the
       week's uploads and presents it in the magazine-spread treatment
       (PLAN §3.4). **May pick a 5.4 detail crop**, not only a full
-      photo.
-- [ ] **Worth-photographing nudges** — Foreman occasionally suggests a
+      photo. _(already shipped on the picks page "This week" section)_
+- [x] **Worth-photographing nudges** — Foreman occasionally suggests a
       shot ("get a wide of the corner now, before the cabinets go in").
       Opt-in, sparingly, never push notifications.
+      _(v0: only when the user asks or when the model elects;
+      strictly no push notifications, no schedule.)_
 
 Exit: the Foreman is not only reacting to photos — it is helping the
 user take the photos that will pay off later.
